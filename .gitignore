@@ -1,3 +1,14 @@
+
+.env
+backend/firebase/lionsentry-firebase-adminsdk.json
+venv/
+*.pyc
+*.log
+.vscode/
+.vscode/settings.json
+.DS_Store
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
