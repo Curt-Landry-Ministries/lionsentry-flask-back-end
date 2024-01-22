@@ -1,0 +1,37 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "devotionals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "forUser", "order": "ASCENDING" },
+        { "fieldPath": "dateTimeCreated", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "devotionals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "forUser", "order": "ASCENDING" },
+        { "fieldPath": "dateTimeCreated", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "whyStatements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "forUser", "order": "ASCENDING" },
+        { "fieldPath": "dateTimeCreated", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "whyStatements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "forUser", "order": "ASCENDING" },
+        { "fieldPath": "dateTimeCreated", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
