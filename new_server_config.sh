@@ -1,5 +1,15 @@
 #!/bin/bash
 
+######################
+##### IMPORTANT ######
+######################
+# SETUP SSH KEYS ON INSTANCE FOR GITHUB FIRST #
+# https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
+# ssh-keygen -t ed25519 -C "your_email@example.com"
+# ssh-keygen -t rsa -b 4096 -C "your_email@example.com" for legacy systems
+# cat .ssh/id_ed25519.pub or cat .ssh/id_rsa.pub
+
+
 # Remove conflicting packages
 for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
 
