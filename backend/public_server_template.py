@@ -43,7 +43,7 @@ def get_base_directory():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def setup_cors(app, origins=["http://localhost:19006"]):
+def setup_cors(app, origins=["*"]):
     CORS(app, origins=origins, supports_credentials=True)
 
 
