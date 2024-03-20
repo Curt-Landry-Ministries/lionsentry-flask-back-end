@@ -60,7 +60,7 @@ sudo bash build.sh -f
 
 - [X] Setup EC2 Instance
 - [X] Setup Docker, Python, Pip
-- [ ] Setup NGINX Proxy for Docker Containers and Ports
+- [X] Setup NGINX Proxy for Docker Containers and Ports
 
 ### Resources
 - [Docker](https://docs.docker.com/engine/install/ubuntu/)
