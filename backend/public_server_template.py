@@ -55,8 +55,7 @@ def setup_session(app, secret_key='your_secret_key_here'):
 def setup_after_request(app):
     @app.after_request
     def after_request(response):
-        response.headers.add('Access-Control-Allow-Origin',
-                             'http://localhost:19006')
+        response.headers.add('Access-Control-Allow-Origin','*')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
         response.headers.add('Access-Control-Allow-Headers',
                              'Content-Type,Authorization')
