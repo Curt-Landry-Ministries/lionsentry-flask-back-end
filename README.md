@@ -23,7 +23,6 @@ The build script (`build.sh`) ensures a smooth setup. Use the `-f` flag for a fu
 Developed on Mac with Python venv. End-to-end testing is conducted using pytest.
 
 - **Python Version**: 3.8
-- **npm Version**: 10.2.3
 - **pip Version**: 23.3.1
 
 ### Virtual Environment Setup 🐍
@@ -39,6 +38,7 @@ Developed on Mac with Python venv. End-to-end testing is conducted using pytest.
    cd LionSentry
    python3 -m venv venv
    source venv/bin/activate
+   python3 -m pip install --upgrade pip
    ```
 **Install requirments and run build script inside environment**: 
    ```
@@ -50,6 +50,7 @@ Developed on Mac with Python venv. End-to-end testing is conducted using pytest.
 
 - **Application Server**: Runs on port 5001.
 - **Authentication Server**: Runs on port 5002.
+- **Email Server**: Runs on port 5003.
 
 ## Contact 👋
 For any setup-related questions, please message Griffin Clark via Slack
