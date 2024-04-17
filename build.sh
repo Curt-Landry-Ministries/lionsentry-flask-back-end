@@ -76,8 +76,8 @@ fi
 echo "Rebuilding and starting containers without using cache..."
 echo "Building web service with no cache..."
 # Building web with no cache to make sure we're not using an old node_modules
-docker-compose build --no-cache web
+docker-compose build --no-cache
 
 # Start up all services
 echo "Starting all services..."
-docker-compose up
+docker-compose up -d
