@@ -44,7 +44,7 @@ jobs:
 
       - name: Decrypt .cer file
         run: |
-          openssl aes-256-cbc -d -in github-ci.cer.enc -out github-ci.cer -k ${{ secrets.EC2_GITHUB_CI }}
+          openssl aes-256-cbc -d -pbkdf2 -in github-ci.cer.enc -out github-ci.cer -k ${{ secrets.EC2_GITHUB_CI }}
 
       - name: Connect to EC2
         run: |
