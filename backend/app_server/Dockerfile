@@ -5,7 +5,7 @@ FROM python:3.8-slim
 WORKDIR /app
 
 # Copy the requirements.txt file into the container
-COPY ./requirements.txt /app/
+COPY requirements.txt /app/
 
 # Upgrade pip and install build dependencies
 RUN apt-get update && apt-get install -y \
