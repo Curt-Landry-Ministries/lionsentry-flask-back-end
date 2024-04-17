@@ -26,7 +26,7 @@ jobs:
       - name: Build and Push Auth Server Image
         working-directory: backend/auth_server
         run: |
-          docker buldx build -t lionsentry/lionsentry-flask-back-end:auth_server .
+          docker buildx build -t lionsentry/lionsentry-flask-back-end:auth_server .
           docker push lionsentry/lionsentry-flask-back-end:auth_server
 
       - name: Build and Push Email Server Image
