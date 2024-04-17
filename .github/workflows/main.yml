@@ -3,7 +3,7 @@ name: Build and Push Docker Images
 on:
   push:
     branches:
-      - test  # Adjust branch name as needed
+      - test 
 
 jobs:
   build_and_push:
@@ -19,23 +19,17 @@ jobs:
       - name: Build and Push App Server Image
         working-directory: backend/app_server
         run: |
-          docker build -t lionsentry/lionsentry-flask-back-end:app_server .
+          docker buildx build -t lionsentry/lionsentry-flask-back-end:app_server .
           docker push lionsentry/lionsentry-flask-back-end:app_server
 
       - name: Build and Push Auth Server Image
         working-directory: backend/auth_server
         run: |
-          docker build -t lionsentry/lionsentry-flask-back-end:auth_server .
+          docker buldx build -t lionsentry/lionsentry-flask-back-end:auth_server .
           docker push lionsentry/lionsentry-flask-back-end:auth_server
 
       - name: Build and Push Email Server Image
         working-directory: backend/email_server
         run: |
-          docker build -t lionsentry/lionsentry-flask-back-end:email_server .
+          docker buildx build -t lionsentry/lionsentry-flask-back-end:email_server .
           docker push lionsentry/lionsentry-flask-back-end:email_server
-
-      - name: Build and Push Test Service Image
-        working-directory: backend
-        run: |
-          docker build -t lionsentry/lionsentry-flask-back-end:test_service -f Dockerfile.test .
-          docker push lionsentry/lionsentry-flask-back-end:test_service
