@@ -6,8 +6,15 @@ on:
       - test 
       - feature/docker-deployment
 
+env:
+  applicationfolder: backend
+  AWS_REGION: us-east-1
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  IAMROLE_GITHUB: ${{ secrets.IAMROLE_GITHUB }}
+
 jobs:
-  build_and_push:
+  build_dockerhub_image:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,7 +22,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        run: echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Build and Push App Server Image
         working-directory: backend/app_server
@@ -35,25 +42,44 @@ jobs:
           docker buildx build -t lionsentry/lionsentry-flask-back-end:email_server .
           docker push lionsentry/lionsentry-flask-back-end:email_server
 
-  deploy_to_ec2:
-    runs-on: ubuntu-latest
+    # deploy:
+    #   needs: build
+    #   runs-on: ubuntu-latest
+    #   environment: Dev
+    #   permissions:
+    #     id-token: write
+    #     contents: read
+    #   steps:
+    #   - uses: actions/checkout@v2
+    #   - uses: aws-actions/configure-aws-credentials@v1
+    #     with:
+    #       role-to-assume: ${{ env.IAMROLE_GITHUB }}
+    #       role-session-name: GitHub-Action-Role
+    #       aws-region: ${{ env.AWS_REGION }}
+    #   - run: |
+    #       echo "Deploying branch ${{ env.GITHUB_REF }} to ${{ github.event.inputs.environment }}"
+    #       commit_hash=`git rev-parse HEAD`
+    #       aws deploy create-deployment --application-name CodeDeployAppNameWithASG --deployment-group-name CodeDeployGroupName --github-location repository=$GITHUB_REPOSITORY,commitId=$commit_hash --ignore-application-stop-failures
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+  # deploy_to_ec2:
+  #   runs-on: ubuntu-latest
 
-      - name: Decrypt .cer file
-        run: |
-          openssl aes-256-cbc -d -pbkdf2 -in github-ci.cer.enc -out github-ci.cer -k ${{ secrets.EC2_GITHUB_CI }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v2
 
-      - name: Connect to EC2
-        run: |
-          chmod 400 github-ci.cer
-          ssh -i "github-ci.cer" "${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}"
+  #     - name: Decrypt .cer file
+  #       run: |
+  #         openssl aes-256-cbc -d -pbkdf2 -in github-ci.cer.enc -out github-ci.cer -k ${{ secrets.EC2_GITHUB_CI }}
 
-      - name: Pull Docker Images on EC2
-        run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-          sudo docker pull lionsentry/lionsentry-flask-back-end:app_server
-          sudo docker pull lionsentry/lionsentry-flask-back-end:auth_server
-          sudo docker pull lionsentry/lionsentry-flask-back-end:email_server
+  #     - name: Connect to EC2
+  #       run: |
+  #         chmod 400 github-ci.cer
+  #         ssh -i "github-ci.cer" "${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}"
+
+  #     - name: Pull Docker Images on EC2
+  #       run: |
+  #         echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+  #         sudo docker pull lionsentry/lionsentry-flask-back-end:app_server
+  #         sudo docker pull lionsentry/lionsentry-flask-back-end:auth_server
+  #         sudo docker pull lionsentry/lionsentry-flask-back-end:email_server
