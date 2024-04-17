@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - test 
+      - feature/docker-deployment
 
 jobs:
   build_and_push:
