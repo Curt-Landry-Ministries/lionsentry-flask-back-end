@@ -38,21 +38,22 @@ jobs:
   deploy_to_ec2:
     runs-on: ubuntu-latest
 
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-        - name: Decrypt .cer file
-          run: |
-            openssl aes-256-cbc -d -in github-ci.cer.enc -out github-ci.cer -k ${{ secrets.EC2_GITHUB_CI }}
-          
-        - name: Connect to EC2
-          run: |
-            ssh -i "github-ci.cer" "${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}"
+      - name: Decrypt .cer file
+        run: |
+          openssl aes-256-cbc -d -in github-ci.cer.enc -out github-ci.cer -k ${{ secrets.EC2_GITHUB_CI }}
 
-        - name: Connect to EC2
-          run: |
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-            sudo docker pull lionsentry/lionsentry-flask-back-end:app_server
-            sudo docker pull lionsentry/lionsentry-flask-back-end:auth_server
-            sudo docker pull lionsentry/lionsentry-flask-back-end:email_server
+      - name: Connect to EC2
+        run: |
+          chmod 400 github-ci.cer
+          ssh -i "github-ci.cer" "${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}"
+
+      - name: Pull Docker Images on EC2
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          sudo docker pull lionsentry/lionsentry-flask-back-end:app_server
+          sudo docker pull lionsentry/lionsentry-flask-back-end:auth_server
+          sudo docker pull lionsentry/lionsentry-flask-back-end:email_server
