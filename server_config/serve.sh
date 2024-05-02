@@ -9,7 +9,7 @@ sudo ufw allow  'Nginx FULL'
 sudo ufw allow 'OpenSSH'
 sudo systemctl status nginx
 nginx -t 
-cp backend.cyntax.app ~/../etc/nginx/sites-available/
-sudo ln -s ~/../etc/nginx/sites-available/backend.cyntax.app ~/../etc/nginx/sites-enabled/
+cp api.lionsentry.com ~/../etc/nginx/sites-available/
+sudo ln -s ~/../etc/nginx/sites-available/api.lionsentry.com ~/../etc/nginx/sites-enabled/
 nginx -t
 sudo systemctl restart nginx
