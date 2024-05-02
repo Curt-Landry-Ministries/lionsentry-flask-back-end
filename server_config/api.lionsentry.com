@@ -2,7 +2,7 @@ server {
         listen 80;
         listen [::]:80;
 
-        server_name backend.cyntax.app www.backend.cyntax.app;
+        server_name api.lionsentry.com www.api.lionsentry.com;
 
         location / {
             proxy_pass http://localhost:5001;
