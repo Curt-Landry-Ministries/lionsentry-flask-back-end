@@ -1,7 +1,6 @@
 import os
 from flask import Flask, request, jsonify, abort
 from firebase_admin import credentials, firestore
-import firebase_admin
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from datetime import datetime
@@ -11,6 +10,7 @@ import logging
 from dotenv import load_dotenv
 from flask.logging import default_handler
 import sys
+from backend.firebase.firebase_admin_sdk import db
 
 app = Flask(__name__)
 app.logger.removeHandler(default_handler)
@@ -18,10 +18,6 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 load_dotenv()
  
 current_dir = os.path.dirname(os.path.abspath(__file__))
-cred = credentials.Certificate(os.path.join(current_dir, '../firebase/lionsentry-firebase-adminsdk.json'))
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
 
 def convert_to_utc(time_str, timezone_str):
     local = pytz.timezone(timezone_str)

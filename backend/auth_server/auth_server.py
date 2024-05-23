@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
-import firebase_admin
-from firebase_admin import credentials, auth, firestore
+from firebase_admin import auth, firestore
 import os
 import json
 from flask_cors import CORS
@@ -11,19 +10,13 @@ import requests
 
 from backend import public_server_template as pst
 
+from backend.firebase.firebase_admin_sdk import db
+
 auth_app = Flask(__name__)
 CORS(auth_app)
 
 base_dir = pst.get_base_directory()
 load_dotenv()
-firebase_credentials_path = os.path.join(
-    base_dir, "firebase/lionsentry-firebase-adminsdk.json")
-cred = credentials.Certificate(firebase_credentials_path)
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-
-# Firestore DB initialization
-db = firestore.client()
 
 def on_create_user(user_id, email):
     """

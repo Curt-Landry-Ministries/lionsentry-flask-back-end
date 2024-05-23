@@ -2,13 +2,13 @@ from flask import Flask, request, jsonify, session
 from backend import public_server_template as pst
 import json
 import os
-import firebase_admin
-from firebase_admin import auth, firestore, credentials
+from firebase_admin import auth, firestore
 from functools import wraps
 import logging
 import datetime
 from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
+from backend.firebase.firebase_admin_sdk import db
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -20,15 +20,7 @@ pst.setup_after_request(app)
 
 base_dir = pst.get_base_directory()
 user_answers = {}
-
-# Firebase Admin initialization
-firebase_credentials_path = os.path.join(base_dir, 'firebase/lionsentry-firebase-adminsdk.json')
-cred = credentials.Certificate(firebase_credentials_path)
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
    
-
 def verify_firebase_token(f):
     # Decoder to verify the Firebase ID token
     @wraps(f)
