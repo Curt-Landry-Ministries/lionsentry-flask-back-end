@@ -18,9 +18,9 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 load_dotenv()
  
 current_dir = os.path.dirname(os.path.abspath(__file__))
-cred = credentials.Certificate(os.path.join(current_dir, '../firebase/lionsentry-firebase-adminsdk.json'))
+firebase_creds = credentials.Certificate(os.path.join(current_dir, '../firebase/lionsentry-firebase-adminsdk.json'))
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
+    firebase_admin.initialize_app(firebase_creds)
 db = firestore.client()
 
 def convert_to_utc(time_str, timezone_str):
@@ -51,6 +51,7 @@ def schedule_email_with_sendgrid(recipient, subject, content, send_at):
     return response
 
 @app.route('/schedule-emails', methods=['POST'])
+# Hitting this endpoint will schedule all emails in the emailQueue collection
 @require_api_key
 def schedule_emails():
     print('Starting to schedule emails')
@@ -68,11 +69,12 @@ def schedule_emails():
             response = schedule_email_with_sendgrid(user_email, email_data['subject'], email_data['content'], send_at_utc)
             email.reference.update({'status': 'sentToSendGrid', 'sendGridID': response.headers['X-Message-Id']})
         else:
-            app.logger.error(f'User not found for ID: {user_id}')
+            app.logger.error(f'User {user_id} does not exist in the database')
     print('Finished scheduling emails')
     return jsonify({"message": "Emails scheduled successfully"}), 200
 
 @app.route('/sendgrid-webhook', methods=['POST'])
+# This is the endpoint that SendGrid hits when an email has been sent
 def sendgrid_webhook():
     data = request.get_json()
     for event in data:
