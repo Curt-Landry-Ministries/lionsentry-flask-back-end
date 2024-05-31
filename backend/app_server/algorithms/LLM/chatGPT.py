@@ -47,7 +47,7 @@ class ChatGPT:
             messages.append(
                 {"role": "user", "content": prompt.input + user_info})
             chat = openai.ChatCompletion.create(
-                model="gpt-4-1106-preview",
+                model="gpt-4o",
                 messages=messages
             )
             # Store the response
