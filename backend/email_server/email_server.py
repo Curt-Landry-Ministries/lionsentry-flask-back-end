@@ -106,9 +106,12 @@ def create_new_emails_for_all_users():
 
                     content = format_email(response.json())
 
+                    # Get the Title from the response
+                    title = response.json().get('Title')
+
                     db.collection('emailQueue').add({
                         'recipient': user_id,
-                        'subject': 'Daily Devotional',
+                        'subject': title,
                         'content': content,
                         'sendAt': datetime.now().isoformat(),
                         'status': 'written'
