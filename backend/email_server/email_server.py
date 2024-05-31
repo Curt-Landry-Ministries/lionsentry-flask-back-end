@@ -73,8 +73,10 @@ def create_new_emails_for_all_users():
         user_id = user.id
         user_doc = db.collection('users').document(user_id).get()
         if user_doc.exists:
-            user_email = user_doc.to_dict().get('email')
-            if user_email:
+            user_data = user_doc.to_dict()
+            user_email = user_data.get('email')
+            # If the user has an email and isn't a test user (only want this to fire for the dev@lionsentry email in our test environment)
+            if user_email and not(user_email.startswith('test') or user_email.startswith('Test')): 
                 app.logger.info(f"Attempting to generate email for user {user_id}")
                 try:
                     response = requests.post(
@@ -102,7 +104,10 @@ def create_new_emails_for_all_users():
                     app.logger.error(f"Failed to generate email for user {user_id}: {e}")
                     return jsonify({"error": f"Failed to communicate with the app server for user {user_id}: {str(e)}"}), 500
             else:
-                app.logger.error(f"User {user_id} does not have an email address")
+                if user_email:
+                    app.logger.info(f"Skipping test user {user_id} with email {user_email}")
+                else:
+                    app.logger.error(f"User {user_id} does not have an email address")
         else:
             app.logger.error(f"User {user_id} does not exist in the database")
     return jsonify({"message": "Emails created successfully"}), 200

@@ -98,7 +98,7 @@ def generate_email_route():
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
-    
+
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
 def generate_devotional_route(decoded_token):
@@ -272,7 +272,7 @@ def save_user_data_point(decoded_token):
 
         user_ref = db.collection('users').document(user_id)
         user_doc = user_ref.get()
-        if not user_doc.exists():
+        if not user_doc.exists:
             return jsonify({"error": "User does not exist"}), 404
 
         if action == 'replace':
@@ -286,6 +286,7 @@ def save_user_data_point(decoded_token):
     except Exception as e:
         app.logger.error(f'Error in save_user_data_point: {str(e)}', exc_info=True)
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/get-questions', methods=['GET'])
 # Grab the static questions and feed them to the frontend
