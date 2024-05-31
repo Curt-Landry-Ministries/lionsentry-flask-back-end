@@ -28,28 +28,36 @@ class TestEmailScheduling(TestAuthServerBase):
             user_id, email, token = self.create_and_login_user("dev@lionsentry.com", "password123")
             print("created dev user with id: ", user_id)
 
-        
-        # Add email to the queue in Firestore
+        # Add email to the queue using the /create-email-doc endpoint
         now = datetime.now(pytz.timezone('America/Los_Angeles'))
         send_at = (now + timedelta(minutes=1)).isoformat()
         content = f"This is a test email. Written at: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}. " \
-          f"Should be received by: {send_at}. Time zone: America/Los_Angeles."
+                  f"Should be received by: {send_at}. Time zone: America/Los_Angeles."
 
-        email_doc_ref = self.db.collection('emailQueue').add({
+        add_email_payload = {
             'recipient': user_id,
             'subject': 'Test Email From test_send_email.py',
             'content': content,
-            'sendAt': send_at,
-            'status': 'written'
-        })[1]
+            'sendAt': send_at
+        }
 
-        print("added doc to email queue")
+        response = self.email_app.post(
+            '/create-email-doc',
+            headers={'Content-Type': 'application/json', 'EMAIL-SERVER-API-KEY': os.getenv('EMAIL_SERVER_API_KEY')},
+            data=json.dumps(add_email_payload)
+        )
+        
+        assert response.status_code == 200
+        response_data = response.get_json()
+        email_doc_id = response_data['id']
+        print(f"added doc to email queue with id: {email_doc_id}")
 
         # Schedule the email using the Email Server
         response = self.email_app.post('/schedule-emails', headers={'EMAIL-SERVER-API-KEY': os.getenv('EMAIL_SERVER_API_KEY')})
         assert response.status_code == 200
 
         # Wait and poll for the status update in Firestore
+        email_doc_ref = self.db.collection('emailQueue').document(email_doc_id)
         timeout = 60  # seconds
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -60,8 +68,6 @@ class TestEmailScheduling(TestAuthServerBase):
 
         assert updated_email_doc['status'] == 'sentToSendGrid', "Email status not updated to 'sentToSendGrid' within timeout period"
 
-
-
 # Additional tests to be written:
 """
 - Test scheduling emails with invalid API key
@@ -69,4 +75,3 @@ class TestEmailScheduling(TestAuthServerBase):
 - Test response of SendGrid webhook endpoint with different scenarios
 - Test edge cases like scheduling emails for invalid time or non-existent users
 """
-
