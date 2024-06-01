@@ -43,7 +43,7 @@ def get_base_directory():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def setup_cors(app, origins=["*"]):
+def setup_cors(app, origins=["http://localhost:5003", "https://lionsentry.com"]):
     CORS(app, origins=origins, supports_credentials=True)
 
 
@@ -55,7 +55,7 @@ def setup_session(app, secret_key='your_secret_key_here'):
 def setup_after_request(app):
     @app.after_request
     def after_request(response):
-        response.headers.add('Access-Control-Allow-Origin','*')
+        response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
         response.headers.add('Access-Control-Allow-Headers',
                              'Content-Type,Authorization')
