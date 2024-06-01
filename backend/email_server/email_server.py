@@ -57,20 +57,23 @@ def require_api_key(f):
     return decorated_function
 
 
-def schedule_email_with_sendgrid(recipient, subject, content, send_at):
+def schedule_email_with_sendgrid(recipient, dynamic_data, send_at, template_id=None):
     sg = SendGridAPIClient(os.getenv('SENDGRID_API_KEY'))
-    if isinstance(content, dict):
-        # Convert dict to JSON string if necessary
-        content = json.dumps(content)
     message = Mail(
         from_email='griffin@lionsentry.com',
         to_emails=recipient,
-        subject=subject,
-        html_content=content
     )
+    if template_id:
+        message.dynamic_template_data = dynamic_data
+        message.template_id = template_id
+    else:
+        message.subject = dynamic_data.get('subject')
+        message.html_content = dynamic_data.get('content')
     message.send_at = send_at
     response = sg.send(message)
     return response
+
+
 
 
 @app.route('/generate-daily-devotionals-for-all-users', methods=['POST'])
@@ -85,53 +88,52 @@ def create_new_emails_for_all_users():
             user_email = user_data.get('email')
             # If the user has an email and isn't a test user (only want this to fire for the dev@lionsentry email in our test environment)
             if user_email and not (user_email.startswith('test') or user_email.startswith('Test')):
-                app.logger.info(
-                    f"Attempting to generate email for user {user_id}")
+                app.logger.info(f"Attempting to generate email for user {user_id}")
                 try:
                     response = requests.post(
                         f'{APP_SERVER_URL}/generate-email',
                         headers={'API-KEY': os.getenv('APP_SERVER_API_KEY')},
                         json={'user_id': user_id}
                     )
-                    app.logger.info(
-                        f"Sent API-KEY: {os.getenv('APP_SERVER_API_KEY')}")
-                    app.logger.info(
-                        f"Request URL: {APP_SERVER_URL}/generate-email")
-                    app.logger.info(
-                        f"Request Headers: {response.request.headers}")
+                    app.logger.info(f"Sent API-KEY: {os.getenv('APP_SERVER_API_KEY')}")
+                    app.logger.info(f"Request URL: {APP_SERVER_URL}/generate-email")
+                    app.logger.info(f"Request Headers: {response.request.headers}")
                     app.logger.info(f"Request Body: {response.request.body}")
-                    app.logger.info(
-                        f"Response Status: {response.status_code}, Response Text: {response.text}")
+                    app.logger.info(f"Response Status: {response.status_code}, Response Text: {response.text}")
                     response.raise_for_status()  # Raise an exception for HTTP errors
 
-                    content = format_email(response.json())
+                    devotional_content = response.json()
+                    title = devotional_content.get('Title')
 
-                    # Get the Title from the response
-                    title = response.json().get('Title')
+                    dynamic_template_data = {
+                        "subject": title,
+                        "bible_passage": devotional_content.get("BiblePassage"),
+                        "personalization": devotional_content.get("Personalization"),
+                        "journaling_prompt": devotional_content.get("JournalingPrompt")
+                    }
 
                     db.collection('emailQueue').add({
                         'recipient': user_id,
                         'subject': title,
-                        'content': content,
+                        'content': dynamic_template_data,
                         'sendAt': datetime.now().isoformat(),
-                        'status': 'written'
+                        'status': 'written',
+                        'template_id': 'd-82f430f90f964795925f4431b8b8daca'  
                     })[1]
-                    app.logger.info(
-                        f"Email successfully generated for user {user_id}")
+                    app.logger.info(f"Email successfully generated for user {user_id}")
                 except requests.exceptions.RequestException as e:
-                    app.logger.error(
-                        f"Failed to generate email for user {user_id}: {e}")
+                    app.logger.error(f"Failed to generate email for user {user_id}: {e}")
                     return jsonify({"error": f"Failed to communicate with the app server for user {user_id}: {str(e)}"}), 500
             else:
                 if user_email:
-                    app.logger.info(
-                        f"Skipping test user {user_id} with email {user_email}")
+                    app.logger.info(f"Skipping test user {user_id} with email {user_email}")
                 else:
-                    app.logger.error(
-                        f"User {user_id} does not have an email address")
+                    app.logger.error(f"User {user_id} does not have an email address")
         else:
             app.logger.error(f"User {user_id} does not exist in the database")
     return jsonify({"message": "Emails created successfully"}), 200
+
+
 
 
 @app.route('/schedule-emails', methods=['POST'])
@@ -157,7 +159,8 @@ def schedule_emails():
             send_at_utc = convert_to_utc(
                 email_data['sendAt'], 'America/Los_Angeles')
             response = schedule_email_with_sendgrid(
-                user_email, email_data['subject'], email_data['content'], send_at_utc)
+                user_email, email_data['content'], send_at_utc, template_id=email_data.get('template_id')
+            )
             app.logger.debug(
                 f"SendGrid response: {response.status_code} {response.body}")
             email.reference.update(
@@ -168,28 +171,32 @@ def schedule_emails():
     return jsonify({"message": "Emails scheduled successfully"}), 200
 
 
-@app.route('/create-email-doc', methods=['POST'])
-@require_api_key
+
+@ app.route('/create-email-doc', methods=['POST'])
+@ require_api_key
 # Create a new email document in the email queue.
 def create_email_doc():
-    data = request.get_json()
+    data=request.get_json()
     app.logger.debug(f"Received request to create email doc with data: {data}")
 
-    recipient = data.get('recipient')
-    subject = data.get('subject')
-    content = data.get('content')
-    send_at = data.get('sendAt')
+    recipient=data.get('recipient')
+    subject=data.get('subject')
+    content=data.get('content')
+    send_at=data.get('sendAt')
+    template_id=data.get('template_id')  # Optional template ID
 
     if not recipient or not subject or not content or not send_at:
         return jsonify({"error": "Missing required fields"}), 400
 
     try:
-        email_doc_ref = db.collection('emailQueue').add({
+        email_doc_ref=db.collection('emailQueue').add({
             'recipient': recipient,
             'subject': subject,
             'content': content,
             'sendAt': send_at,
-            'status': 'written'
+            'status': 'written',
+            'template_id': template_id  # Include the template ID in the document
+
         })[1]
 
         return jsonify({"message": "Email added to queue successfully", "id": email_doc_ref.id}), 200
@@ -198,15 +205,15 @@ def create_email_doc():
         return jsonify({"error": "Failed to add email to queue"}), 500
 
 
-@app.route('/sendgrid-webhook', methods=['POST'])
+@ app.route('/sendgrid-webhook', methods=['POST'])
 # Handle webhook events from SendGrid.
 def sendgrid_webhook():
-    data = request.get_json()
+    data=request.get_json()
     app.logger.debug(f"Received SendGrid webhook data: {data}")
 
     for event in data:
-        sendGridID = event.get('email_id')
-        status = event.get('event')
+        sendGridID=event.get('email_id')
+        status=event.get('event')
         if status == 'delivered':
             db.collection('emailQueue').document(
                 sendGridID).update({'status': 'sentSuccessfully'})
