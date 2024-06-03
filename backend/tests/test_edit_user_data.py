@@ -6,8 +6,6 @@ from server_utils import TestAuthServerBase, TestAppServerBase
 
 logging.basicConfig(level=logging.DEBUG)
 
-# Create a test user, authenticate them, and try editing their data
-
 class TestSaveUserDataPoint(unittest.TestCase):
     def setUp(self):
         # Initialize TestAuthServer and TestAppServer

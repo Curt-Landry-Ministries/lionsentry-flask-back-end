@@ -42,6 +42,43 @@ def verify_firebase_token(f):
         return f(*args, **kwargs)
     return decorator
 
+@app.route('/generate-email', methods=['POST'])
+@verify_api_key
+def generate_email_route():
+    logging.debug("Accessing /generate-email endpoint")
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({"error": "User ID is required"}), 400
+
+        # Query Firestore for the user's Why Statement
+        why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
+        if len(why_statement_docs) == 0:
+            return jsonify({"error": "Why Statement not found for the user"}), 404
+
+        why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
+
+        # Generate a devotional using the user's Why Statement
+        devotional_content = generate_devotional_content(why_statement)
+
+        # Store the devotional in Firestore
+        dateTimeCreated = datetime.datetime.now().isoformat()
+        devotional_record = {
+            "title": devotional_content["Title"],
+            "biblePassage": devotional_content["BiblePassage"],
+            "personalization": devotional_content["Personalization"],
+            "journalingPrompt": devotional_content["JournalingPrompt"],
+            "dateTimeCreated": dateTimeCreated,
+            "forUser": user_id
+        }
+        db.collection('devotionals').add(devotional_record)
+
+        return jsonify(devotional_content)
+    except Exception as e:
+        app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
+        return jsonify({"error": "Failed to generate devotional content"}), 500
+    
 
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
@@ -230,6 +267,7 @@ def save_user_data_point(decoded_token):
     except Exception as e:
         app.logger.error(f'Error in save_user_data_point: {str(e)}', exc_info=True)
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/get-questions', methods=['GET'])
 # Grab the static questions and feed them to the frontend

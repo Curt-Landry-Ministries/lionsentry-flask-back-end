@@ -43,6 +43,7 @@ def delete_collection(collection):
 def create_test_user():
     test_server = TestAuthServerBase()
     test_server.setUp()  # Ensure the test server is set up correctly
+    test_server.create_user_with_credentials("dev@lionsentry.com", "Password")
     user_id, email = test_server.create_user_with_credentials("testAccount@lionsentry.com", "Password")
     if user_id:
         print(f"Test user created successfully: {email} (ID: {user_id})")
