@@ -43,7 +43,7 @@ def verify_firebase_token(f):
     return decorator
 
 @app.route('/generate-email', methods=['POST'])
-@verify_api_key
+@verify_firebase_token
 def generate_email_route():
     logging.debug("Accessing /generate-email endpoint")
     try:
