@@ -13,6 +13,13 @@ import logging
 from dotenv import load_dotenv
 from flask.logging import default_handler
 import sys
+
+# Add the backend path to sys.path for absolute imports
+backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, backend_path)
+print(f"Backend path added to sys.path in email_server.py: {backend_path}")
+print("Current Python Path in email_server.py:", sys.path)
+
 from email_server.email_utils import format_email
 
 app = Flask(__name__)
@@ -38,14 +45,12 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(firebase_creds)
 db = firestore.client()
 
-
 def convert_to_utc(time_str, timezone_str):
     local = pytz.timezone(timezone_str)
     naive = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%f")
     local_dt = local.localize(naive, is_dst=None)
     utc_dt = local_dt.astimezone(pytz.utc)
     return int(utc_dt.timestamp())
-
 
 def require_api_key(f):
     @wraps(f)
