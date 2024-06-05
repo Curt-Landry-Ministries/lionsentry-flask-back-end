@@ -1,3 +1,4 @@
+from backend.email_server.llm.generate_devotional import generate_devotional_content
 import html
 import json
 import os
@@ -19,7 +20,6 @@ import sys
 backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, backend_path)
 
-from backend.email_server.llm.generate_devotional import generate_devotional_content
 
 app = Flask(__name__)
 app.logger.removeHandler(default_handler)
@@ -34,12 +34,14 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(firebase_creds)
 db = firestore.client()
 
+
 def convert_to_utc(time_str, timezone_str):
     local = pytz.timezone(timezone_str)
     naive = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%f")
     local_dt = local.localize(naive, is_dst=None)
     utc_dt = local_dt.astimezone(pytz.utc)
     return int(utc_dt.timestamp())
+
 
 def require_api_key(f):
     @wraps(f)
@@ -49,6 +51,36 @@ def require_api_key(f):
             abort(401)
         return f(*args, **kwargs)
     return decorated_function
+
+
+def get_why_statement(user_id):
+    # Get their Why Statement and include it here too
+    why_statement_docs = db.collection(
+        'whyStatements').where('forUser', '==', user_id).get()
+
+    if len(why_statement_docs) == 0:
+        return jsonify({"error": "Why Statement not found for the user"}), 404
+
+    why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
+    # Add the why statement to user data
+    return why_statement
+
+def get_onboarding_answers(user_id):
+    answers_query = db.collection('onboardingAnswers').where('userID', '==', user_id)
+    answers_docs = answers_query.stream()
+
+    # Collect the most recent answer for each question
+    recent_answers = {}
+    for answer_doc in answers_docs:
+        answer_data = answer_doc.to_dict()
+        question = answer_data['question']
+        # Assuming the answers are sorted in the array with the most recent last
+        most_recent_answer = answer_data['answers'][-1]
+        recent_answers[question] = most_recent_answer
+
+    # Get the answer texts and create a list of question-answer pairs
+    questions_answers = [{"question": q, "answer": a['answer']} for q, a in recent_answers.items()]
+    return questions_answers
 
 
 def schedule_email_with_sendgrid(recipient, dynamic_data, send_at, template_id=None):
@@ -67,38 +99,33 @@ def schedule_email_with_sendgrid(recipient, dynamic_data, send_at, template_id=N
     response = sg.send(message)
     return response
 
+
 @app.route('/generate-daily-devotionals-for-all-users', methods=['POST'])
 @require_api_key
 def create_new_emails_for_all_users():
     for_testing = request.json.get('for_testing', False)
     if for_testing:
-        users = db.collection('users').where('email', '==', 'dev@lionsentry.com').stream()
+        users = db.collection('users').where(
+            'email', '==', 'dev@lionsentry.com').stream()
     else:
         users = db.collection('users').stream()
-    
+
     for user in users:
         user_id = user.id
         user_doc = db.collection('users').document(user_id).get()
         if user_doc.exists:
             user_data = user_doc.to_dict()
-            # Get their Why Statement and include it here too
-            why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
-
-            if len(why_statement_docs) == 0:
-                return jsonify({"error": "Why Statement not found for the user"}), 404
-
-            why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
-            # Add the why statement to user data
-            user_data['whyStatement'] = why_statement
+            user_data['whyStatement'] = get_why_statement(user_id)
+            user_data['onboardingAnswers'] = get_onboarding_answers(user_id)
             user_email = user_data.get('email')
             if user_email and not (user_email.startswith('test') or user_email.startswith('Test')):
-                app.logger.info(f"Attempting to generate email for user {user_id}")
+                app.logger.info(
+                    f"Attempting to generate email for user {user_id}")
                 try:
                     devotional_content = generate_devotional_content(user_data)
-                    
+
                     title = devotional_content.get('Title')
                     title = html.unescape(devotional_content.get('Title'))
-
 
                     dynamic_template_data = {
                         "subject": title,
@@ -113,17 +140,21 @@ def create_new_emails_for_all_users():
                         'content': dynamic_template_data,
                         'sendAt': datetime.now().isoformat(),
                         'status': 'written',
-                        'template_id': 'd-82f430f90f964795925f4431b8b8daca'  
+                        'template_id': 'd-82f430f90f964795925f4431b8b8daca'
                     })[1]
-                    app.logger.info(f"Email successfully generated for user {user_id}")
+                    app.logger.info(
+                        f"Email successfully generated for user {user_id}")
                 except Exception as e:
-                    app.logger.error(f"Failed to generate email for user {user_id}: {e}")
+                    app.logger.error(
+                        f"Failed to generate email for user {user_id}: {e}")
                     return jsonify({"error": f"Failed to generate email for user {user_id}: {str(e)}"}), 500
             else:
                 if user_email:
-                    app.logger.info(f"Skipping test user {user_id} with email {user_email}")
+                    app.logger.info(
+                        f"Skipping test user {user_id} with email {user_email}")
                 else:
-                    app.logger.error(f"User {user_id} does not have an email address")
+                    app.logger.error(
+                        f"User {user_id} does not have an email address")
         else:
             app.logger.error(f"User {user_id} does not exist in the database")
     return jsonify({"message": "Emails created successfully"}), 200
@@ -152,7 +183,8 @@ def schedule_emails():
             send_at_utc = convert_to_utc(
                 email_data['sendAt'], 'America/Los_Angeles')
             response = schedule_email_with_sendgrid(
-                user_email, email_data['content'], send_at_utc, template_id=email_data.get('template_id')
+                user_email, email_data['content'], send_at_utc, template_id=email_data.get(
+                    'template_id')
             )
             app.logger.debug(
                 f"SendGrid response: {response.status_code} {response.body}")
@@ -164,25 +196,24 @@ def schedule_emails():
     return jsonify({"message": "Emails scheduled successfully"}), 200
 
 
-
 @ app.route('/create-email-doc', methods=['POST'])
 @ require_api_key
 # Create a new email document in the email queue.
 def create_email_doc():
-    data=request.get_json()
+    data = request.get_json()
     app.logger.debug(f"Received request to create email doc with data: {data}")
 
-    recipient=data.get('recipient')
-    subject=data.get('subject')
-    content=data.get('content')
-    send_at=data.get('sendAt')
-    template_id=data.get('template_id')  # Optional template ID
+    recipient = data.get('recipient')
+    subject = data.get('subject')
+    content = data.get('content')
+    send_at = data.get('sendAt')
+    template_id = data.get('template_id')  # Optional template ID
 
     if not recipient or not subject or not content or not send_at:
         return jsonify({"error": "Missing required fields"}), 400
 
     try:
-        email_doc_ref=db.collection('emailQueue').add({
+        email_doc_ref = db.collection('emailQueue').add({
             'recipient': recipient,
             'subject': subject,
             'content': content,
@@ -201,12 +232,12 @@ def create_email_doc():
 @ app.route('/sendgrid-webhook', methods=['POST'])
 # Handle webhook events from SendGrid.
 def sendgrid_webhook():
-    data=request.get_json()
+    data = request.get_json()
     app.logger.debug(f"Received SendGrid webhook data: {data}")
 
     for event in data:
-        sendGridID=event.get('email_id')
-        status=event.get('event')
+        sendGridID = event.get('email_id')
+        status = event.get('event')
         if status == 'delivered':
             db.collection('emailQueue').document(
                 sendGridID).update({'status': 'sentSuccessfully'})
