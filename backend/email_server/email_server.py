@@ -1,3 +1,4 @@
+import html
 import json
 import os
 from flask import Flask, request, jsonify, abort
@@ -17,26 +18,14 @@ import sys
 # Add the backend path to sys.path for absolute imports
 backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, backend_path)
-print(f"Backend path added to sys.path in email_server.py: {backend_path}")
-print("Current Python Path in email_server.py:", sys.path)
 
-from email_server.email_utils import format_email
+from backend.email_server.llm.generate_devotional import generate_devotional_content
 
 app = Flask(__name__)
 app.logger.removeHandler(default_handler)
 # Set log level to DEBUG
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 load_dotenv()
-
-# Log environment variables
-app.logger.debug(
-    f"APP_SERVER_URL: {'http://localhost:5001' if os.getenv('DEV_MODE') else 'https://api.lionsentry.com/app_server/'}")
-app.logger.debug(f"EMAIL_SERVER_API_KEY: {os.getenv('EMAIL_SERVER_API_KEY')}")
-app.logger.debug(f"APP_SERVER_API_KEY: {os.getenv('APP_SERVER_API_KEY')}")
-app.logger.debug(f"SENDGRID_API_KEY: {os.getenv('SENDGRID_API_KEY')}")
-
-APP_SERVER_URL = 'http://localhost:5001' if os.getenv(
-    'DEV_MODE') else 'https://lionsentry.com'
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 firebase_creds = credentials.Certificate(os.path.join(
@@ -78,37 +67,38 @@ def schedule_email_with_sendgrid(recipient, dynamic_data, send_at, template_id=N
     response = sg.send(message)
     return response
 
-
-
-
 @app.route('/generate-daily-devotionals-for-all-users', methods=['POST'])
 @require_api_key
 def create_new_emails_for_all_users():
-    users = db.collection('users').stream()
+    for_testing = request.json.get('for_testing', False)
+    if for_testing:
+        users = db.collection('users').where('email', '==', 'dev@lionsentry.com').stream()
+    else:
+        users = db.collection('users').stream()
+    
     for user in users:
         user_id = user.id
         user_doc = db.collection('users').document(user_id).get()
         if user_doc.exists:
             user_data = user_doc.to_dict()
+            # Get their Why Statement and include it here too
+            why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
+
+            if len(why_statement_docs) == 0:
+                return jsonify({"error": "Why Statement not found for the user"}), 404
+
+            why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
+            # Add the why statement to user data
+            user_data['whyStatement'] = why_statement
             user_email = user_data.get('email')
-            # If the user has an email and isn't a test user (only want this to fire for the dev@lionsentry email in our test environment)
             if user_email and not (user_email.startswith('test') or user_email.startswith('Test')):
                 app.logger.info(f"Attempting to generate email for user {user_id}")
                 try:
-                    response = requests.post(
-                        f'{APP_SERVER_URL}/generate-email',
-                        headers={'API-KEY': os.getenv('APP_SERVER_API_KEY')},
-                        json={'user_id': user_id}
-                    )
-                    app.logger.info(f"Sent API-KEY: {os.getenv('APP_SERVER_API_KEY')}")
-                    app.logger.info(f"Request URL: {APP_SERVER_URL}/generate-email")
-                    app.logger.info(f"Request Headers: {response.request.headers}")
-                    app.logger.info(f"Request Body: {response.request.body}")
-                    app.logger.info(f"Response Status: {response.status_code}, Response Text: {response.text}")
-                    response.raise_for_status()  # Raise an exception for HTTP errors
-
-                    devotional_content = response.json()
+                    devotional_content = generate_devotional_content(user_data)
+                    
                     title = devotional_content.get('Title')
+                    title = html.unescape(devotional_content.get('Title'))
+
 
                     dynamic_template_data = {
                         "subject": title,
@@ -126,9 +116,9 @@ def create_new_emails_for_all_users():
                         'template_id': 'd-82f430f90f964795925f4431b8b8daca'  
                     })[1]
                     app.logger.info(f"Email successfully generated for user {user_id}")
-                except requests.exceptions.RequestException as e:
+                except Exception as e:
                     app.logger.error(f"Failed to generate email for user {user_id}: {e}")
-                    return jsonify({"error": f"Failed to communicate with the app server for user {user_id}: {str(e)}"}), 500
+                    return jsonify({"error": f"Failed to generate email for user {user_id}: {str(e)}"}), 500
             else:
                 if user_email:
                     app.logger.info(f"Skipping test user {user_id} with email {user_email}")
@@ -137,8 +127,6 @@ def create_new_emails_for_all_users():
         else:
             app.logger.error(f"User {user_id} does not exist in the database")
     return jsonify({"message": "Emails created successfully"}), 200
-
-
 
 
 @app.route('/schedule-emails', methods=['POST'])
