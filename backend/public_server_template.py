@@ -9,7 +9,6 @@ from flask_cors import CORS
 # Get the absolute path of the directory where this script is located
 template_dir = os.path.dirname(os.path.abspath(__file__))
 
-
 def setup_logging(app, log_directory='logs'):
     # Modify the log directory path to be relative to the template directory
     log_directory = os.path.join(template_dir, log_directory)
@@ -21,8 +20,7 @@ def setup_logging(app, log_directory='logs'):
     os.makedirs(log_directory, exist_ok=True)
 
     # Setup logger
-    file_handler = RotatingFileHandler(
-        log_filename, maxBytes=1000000, backupCount=5)
+    file_handler = RotatingFileHandler(log_filename, maxBytes=1000000, backupCount=5)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
 
@@ -38,27 +36,30 @@ def setup_logging(app, log_directory='logs'):
     app.logger.addHandler(file_handler)
     app.logger.setLevel(logging.INFO)
 
-
 def get_base_directory():
     return os.path.dirname(os.path.abspath(__file__))
 
-
-def setup_cors(app, origins=["http://localhost:5003", "https://lionsentry.com"]):
+def setup_cors(app, origins=["*"]):
     CORS(app, origins=origins, supports_credentials=True)
 
+    @app.after_request
+    def after_request(response):
+        response.headers["Access-Control-Allow-Origin"] = ", ".join(origins)
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        return response
+
+    @app.before_request
+    def handle_options():
+        if request.method == 'OPTIONS':
+            response = app.make_response("")
+            response.headers["Access-Control-Allow-Origin"] = ", ".join(origins)
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.status_code = 200
+            return response
 
 def setup_session(app, secret_key='your_secret_key_here'):
     app.secret_key = secret_key
-    # Additional session configuration can go here if needed
-
-
-def setup_after_request(app):
-    @app.after_request
-    def after_request(response):
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        response.headers.add('Access-Control-Allow-Headers',
-                             'Content-Type,Authorization')
-        response.headers.add(
-            'Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE')
-        return response

@@ -1,45 +1,30 @@
-from flask import Flask, request, jsonify, session
-from backend import public_server_template as pst
-import json
+
 import os
-import firebase_admin
-from firebase_admin import auth, firestore, credentials
-from functools import wraps
+import json
 import logging
 import datetime
+from functools import wraps
+from flask_cors import CORS
+from firebase_admin import auth, firestore
+from backend import public_server_template as pst
+from flask import Flask, request, jsonify, session
+from backend.firebase.firebase_admin_sdk import db
 from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
 
 app = Flask(__name__)
+CORS(app)
+
+base_dir = pst.get_base_directory()
 app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 pst.setup_session(app)
 pst.setup_logging(app)
 pst.setup_cors(app)
-pst.setup_after_request(app)
 
 base_dir = pst.get_base_directory()
 user_answers = {}
-
-# Firebase Admin initialization
-firebase_credentials_path = os.path.join(base_dir, 'firebase/lionsentry-firebase-adminsdk.json')
-cred = credentials.Certificate(firebase_credentials_path)
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-def verify_api_key(f):
-    @wraps(f)
-    def decorator(*args, **kwargs):
-        api_key_header = request.headers.get('API-KEY')
-        if api_key_header and api_key_header == os.getenv('APP_SERVER_API_KEY'):
-            logging.debug("API key successfully verified")
-            return f(*args, **kwargs)
-        else:
-            logging.error("Invalid or missing API key")
-            return jsonify({"error": "Invalid or missing API key"}), 401
-    return decorator
-
+   
 def verify_firebase_token(f):
     # Decoder to verify the Firebase ID token
     @wraps(f)
@@ -62,7 +47,7 @@ def verify_firebase_token(f):
     return decorator
 
 @app.route('/generate-email', methods=['POST'])
-@verify_api_key
+@verify_firebase_token
 def generate_email_route():
     logging.debug("Accessing /generate-email endpoint")
     try:
@@ -251,9 +236,15 @@ def submit_answer(decoded_token):
         app.logger.error(f'Failed to submit answer: {e}', exc_info=True)
         return jsonify({"error": "Failed to submit answer"}), 500
 
-@app.route('/save-user-data-point', methods=['POST'])
+@app.route('/save-user-data-point', methods=['OPTIONS', 'POST'])
 @verify_firebase_token
 def save_user_data_point(decoded_token):
+    if request.method == 'OPTIONS':
+        # Handle preflight CORS request
+        response = jsonify({"message": "CORS preflight check successful"})
+        response.status_code = 200
+        return response
+
     try:
         data = request.get_json()
         target_user_id = data.get('targetUserId')
