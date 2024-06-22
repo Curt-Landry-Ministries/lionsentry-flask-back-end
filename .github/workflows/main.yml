@@ -5,6 +5,7 @@ on:
     branches:
       - test 
       - feature/docker-deployment
+      - migration/handle-merge-conflicts
 
 env:
   applicationfolder: backend
