@@ -83,15 +83,12 @@ def generate_email_route():
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
-
 @app.route('/generate-devotional', methods=['POST'])
-@verify_firebase_token
+# @verify_firebase_token
 def generate_devotional_route(decoded_token):
     try:
-        # Get the user's ID from the decoded token
         user_id = decoded_token['uid']
 
-        # Query Firestore for the user's Why Statement
         why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
 
         if len(why_statement_docs) == 0:
@@ -99,10 +96,12 @@ def generate_devotional_route(decoded_token):
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
 
-        # Generate a devotional using the user's Why Statement
+        # Check if why_statement is a string, if not, convert it to a dictionary
+        if isinstance(why_statement, str):
+            why_statement = {"whyStatement": why_statement}
+
         devotional_content = generate_devotional_content(why_statement)
 
-        # Store the devotional in Firestore
         dateTimeCreated = datetime.datetime.now().isoformat()
         devotional_record = {
             "title": devotional_content["Title"],
@@ -114,13 +113,9 @@ def generate_devotional_route(decoded_token):
         }
         db.collection('devotionals').add(devotional_record)
 
-        # email the devotional to the user using the email server
-        
-
         return jsonify(devotional_content)
     except Exception as e:
-        app.logger.error(
-            f'Failed to generate devotional content: {e}', exc_info=True)
+        app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
 
 
