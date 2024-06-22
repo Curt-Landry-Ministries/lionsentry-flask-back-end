@@ -1,15 +1,13 @@
+
+import os
+import json
+import requests
+from flask_cors import CORS
+from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from firebase_admin import auth, firestore
-import os
-import json
-from flask_cors import CORS
-from datetime import datetime
-
-import requests
-
 from backend import public_server_template as pst
-
 from backend.firebase.firebase_admin_sdk import db
 
 auth_app = Flask(__name__)

@@ -1,22 +1,26 @@
-from flask import Flask, request, jsonify, session
-from backend import public_server_template as pst
-import json
+
 import os
-from firebase_admin import auth, firestore
-from functools import wraps
+import json
 import logging
 import datetime
+from functools import wraps
+from flask_cors import CORS
+from firebase_admin import auth, firestore
+from backend import public_server_template as pst
+from flask import Flask, request, jsonify, session
+from backend.firebase.firebase_admin_sdk import db
 from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
-from backend.firebase.firebase_admin_sdk import db
 
 app = Flask(__name__)
+CORS(app)
+
+base_dir = pst.get_base_directory()
 app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 pst.setup_session(app)
 pst.setup_logging(app)
 pst.setup_cors(app)
-pst.setup_after_request(app)
 
 base_dir = pst.get_base_directory()
 user_answers = {}
@@ -232,9 +236,15 @@ def submit_answer(decoded_token):
         app.logger.error(f'Failed to submit answer: {e}', exc_info=True)
         return jsonify({"error": "Failed to submit answer"}), 500
 
-@app.route('/save-user-data-point', methods=['POST'])
+@app.route('/save-user-data-point', methods=['OPTIONS', 'POST'])
 @verify_firebase_token
 def save_user_data_point(decoded_token):
+    if request.method == 'OPTIONS':
+        # Handle preflight CORS request
+        response = jsonify({"message": "CORS preflight check successful"})
+        response.status_code = 200
+        return response
+
     try:
         data = request.get_json()
         target_user_id = data.get('targetUserId')
