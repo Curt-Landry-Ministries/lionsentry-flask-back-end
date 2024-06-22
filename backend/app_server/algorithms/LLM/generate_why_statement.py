@@ -34,7 +34,7 @@ def generate_why_statement(questions_answers):
     messages.append({"role": "user", "content": prompt})
 
     chat = openai.ChatCompletion.create(
-        model="gpt-4-1106-preview", messages=messages)
+        model="gpt-4o", messages=messages)
     why_statement = chat['choices'][0]['message']['content']
 
     return {"whyStatement": why_statement}
