@@ -8,6 +8,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from sendgrid import SendGridAPIClient
+import requests
 from sendgrid.helpers.mail import Mail
 from flask.logging import default_handler
 from flask import Flask, request, jsonify, abort
