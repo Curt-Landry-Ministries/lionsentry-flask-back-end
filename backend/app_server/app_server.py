@@ -84,7 +84,7 @@ def generate_email_route():
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
 @app.route('/generate-devotional', methods=['POST'])
-# @verify_firebase_token
+@verify_firebase_token
 def generate_devotional_route(decoded_token):
     try:
         user_id = decoded_token['uid']

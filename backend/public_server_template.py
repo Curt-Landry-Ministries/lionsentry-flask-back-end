@@ -2,6 +2,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from flask import request
 from flask_cors import CORS
 
 # Adhering to DRY, we can extract functionality that is common to both the Auth and App servers into this file like CORS, logging, and session setup.
