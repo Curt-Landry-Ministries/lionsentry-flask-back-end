@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime
-from generate_devotional import generate_devotional_content
+from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 
 def main():
     st.title("Devotional Content Generator")

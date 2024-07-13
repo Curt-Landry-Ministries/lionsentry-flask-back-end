@@ -1,14 +1,15 @@
 import json
-import openai
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 from datetime import datetime
+from langchain.prompts import PromptTemplate
+from langchain.chat_models import ChatOpenAI
 
+# Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-CHATGPT_ROLE = "You are a a consentual extension of Rabbi Curt Landry who wants to help people use the Bible to guide their life. Write in a modern, inspiring, upbeat, and positive tone without being too over-the-top."
-
+CHATGPT_ROLE = "You are a consensual extension of Rabbi Curt Landry, guiding people using the Bible. Write in a modern, inspiring, upbeat, and positive tone without being too over-the-top."
 BASE_PROMPT_SUFFIX = "ONLY provide the asked-for information. Do not include any filler text, greetings, or sign-offs. Do not include any text that is not explicitly demanded by the prompt."
 
 BIBLE_PASSAGE_PROMPT = (
@@ -32,7 +33,6 @@ DEVOTIONAL_TITLE_PROMPT = (
 )
 
 def format_user_info(user_info):
-    print(f"User info: {user_info}")
     formatted_user_info = {}
     for key, value in user_info.items():
         if isinstance(value, datetime):
@@ -41,38 +41,47 @@ def format_user_info(user_info):
             formatted_user_info[key] = value
     return json.dumps(formatted_user_info).replace('"', '\"')
 
-def generate_prompt(role, content):
-    return {"role": role, "content": content}
-
-def chatgpt_request(model, messages):
-    response = openai.ChatCompletion.create(model=model, messages=messages)
-    result = response['choices'][0]['message']['content']
-    print(f"Generated part: {result[:20]}")
-    return result
+llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4")
 
 def generate_bible_passage(user_info_formatted):
-    content = BIBLE_PASSAGE_PROMPT.format(user_info_formatted=user_info_formatted)
-    prompt = generate_prompt("user", content)
-    response = chatgpt_request("gpt-4o", [{"role": "system", "content": CHATGPT_ROLE}, prompt])
-    return response
+    prompt = PromptTemplate(template=BIBLE_PASSAGE_PROMPT, input_variables=["user_info_formatted"])
+    formatted_prompt = prompt.format(user_info_formatted=user_info_formatted)
+    messages = [
+        {"role": "system", "content": CHATGPT_ROLE},
+        {"role": "user", "content": formatted_prompt}
+    ]
+    response = llm.invoke(messages)
+    return response.content
 
 def generate_personalization(bible_passage, user_info):
-    content = PERSONALIZATION_PROMPT.format(bible_passage=bible_passage, user_info=user_info)
-    prompt = generate_prompt("user", content)
-    response = chatgpt_request("gpt-4o", [{"role": "system", "content": CHATGPT_ROLE}, prompt])
-    return response
+    prompt = PromptTemplate(template=PERSONALIZATION_PROMPT, input_variables=["bible_passage", "user_info"])
+    formatted_prompt = prompt.format(bible_passage=bible_passage, user_info=user_info)
+    messages = [
+        {"role": "system", "content": CHATGPT_ROLE},
+        {"role": "user", "content": formatted_prompt}
+    ]
+    response = llm.invoke(messages)
+    return response.content
 
 def generate_journaling_prompt(bible_passage, personalization, user_info_formatted):
-    content = JOURNALING_PROMPT.format(bible_passage=bible_passage, personalization=personalization, user_info_formatted=user_info_formatted)
-    prompt = generate_prompt("user", content)
-    response = chatgpt_request("gpt-4o", [{"role": "system", "content": CHATGPT_ROLE}, prompt])
-    return response
+    prompt = PromptTemplate(template=JOURNALING_PROMPT, input_variables=["bible_passage", "personalization", "user_info_formatted"])
+    formatted_prompt = prompt.format(bible_passage=bible_passage, personalization=personalization, user_info_formatted=user_info_formatted)
+    messages = [
+        {"role": "system", "content": CHATGPT_ROLE},
+        {"role": "user", "content": formatted_prompt}
+    ]
+    response = llm.invoke(messages)
+    return response.content
 
 def generate_devotional_title(bible_passage, personalization, journaling, user_info_formatted):
-    content = DEVOTIONAL_TITLE_PROMPT.format(journaling=journaling, bible_passage=bible_passage, user_info_formatted=user_info_formatted)
-    prompt = generate_prompt("user", content)
-    response = chatgpt_request("gpt-4o", [{"role": "system", "content": CHATGPT_ROLE}, prompt])
-    return response
+    prompt = PromptTemplate(template=DEVOTIONAL_TITLE_PROMPT, input_variables=["bible_passage", "personalization", "journaling", "user_info_formatted"])
+    formatted_prompt = prompt.format(bible_passage=bible_passage, personalization=personalization, journaling=journaling, user_info_formatted=user_info_formatted)
+    messages = [
+        {"role": "system", "content": CHATGPT_ROLE},
+        {"role": "user", "content": formatted_prompt}
+    ]
+    response = llm.invoke(messages)
+    return response.content
 
 def generate_devotional_content(user_info):
     user_info_formatted = format_user_info(user_info)
@@ -90,3 +99,13 @@ def generate_devotional_content(user_info):
     }
 
     return devotional_content
+
+# Example usage
+if __name__ == "__main__":
+    user_info = {
+        "beliefs": "I believe in finding peace through spirituality.",
+        "felt_alive": "During quiet moments of reflection.",
+        "relationship_importance": "Trust and honesty."
+    }
+    result = generate_devotional_content(user_info)
+    print(result)
