@@ -84,7 +84,7 @@ def generate_email_route():
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
 @app.route('/generate-devotional', methods=['POST'])
-# @verify_firebase_token
+@verify_firebase_token
 def generate_devotional_route(decoded_token):
     try:
         user_id = decoded_token['uid']
@@ -166,9 +166,14 @@ def generate_why_statement_route(decoded_token):
         return jsonify({"error": "Failed to generate why statement"}), 500
 
     
-@app.route('/get-latest-why-statement', methods=['GET'])
+@app.route('/get-latest-why-statement', methods=['GET', 'OPTIONS'])
 @verify_firebase_token
 def get_latest_why_statement(decoded_token):
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({"message": "CORS preflight check successful"})
+        response.status_code = 200
+        return response
     try:
         user_id = decoded_token['uid']
 
