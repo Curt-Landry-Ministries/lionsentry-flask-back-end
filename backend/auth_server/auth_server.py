@@ -7,8 +7,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from firebase_admin import auth, firestore
-from backend import public_server_template as pst
-from backend.firebase.firebase_admin_sdk import db
+from auth_server import public_server_template as pst
+from firebase.firebase_admin_sdk import db
 
 auth_app = Flask(__name__)
 CORS(auth_app)

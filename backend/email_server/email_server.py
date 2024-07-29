@@ -12,7 +12,7 @@ from sendgrid.helpers.mail import Mail
 from flask.logging import default_handler
 from flask import Flask, request, jsonify, abort
 from firebase_admin import credentials, firestore
-from backend.firebase.firebase_admin_sdk import db
+from firebase.firebase_admin_sdk import db
 
 app = Flask(__name__)
 CORS(app)
