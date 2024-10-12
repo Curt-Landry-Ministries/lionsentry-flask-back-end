@@ -6,11 +6,11 @@ import datetime
 from functools import wraps
 from flask_cors import CORS
 from firebase_admin import auth, firestore
-from app_server import public_server_template as pst
+from backend import public_server_template as pst
 from flask import Flask, request, jsonify, session
-from firebase.firebase_admin_sdk import db
-from app_server.algorithms.LLM.generate_devotional import generate_devotional_content
-from app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
+from backend.firebase.firebase_admin_sdk import db
+from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
+from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
 
 app = Flask(__name__)
 CORS(app)
