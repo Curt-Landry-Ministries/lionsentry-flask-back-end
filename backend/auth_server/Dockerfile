@@ -24,4 +24,4 @@ ENV PYTHONPATH /app
 EXPOSE 5002
 
 # Command to run the auth server
-CMD ["python", "-m", "auth_server.auth_server"]
+CMD ["python", "-m", "backend.auth_server.auth_server"]

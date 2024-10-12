@@ -22,9 +22,6 @@ load_dotenv()
 
 # Log environment variables
 app.logger.debug(f"APP_SERVER_URL: {'http://localhost:5001' if os.getenv('DEV_MODE') else 'https://api.lionsentry.com/app_server/'}")
-app.logger.debug(f"EMAIL_SERVER_API_KEY: {os.getenv('EMAIL_SERVER_API_KEY')}")
-app.logger.debug(f"APP_SERVER_API_KEY: {os.getenv('APP_SERVER_API_KEY')}")
-app.logger.debug(f"SENDGRID_API_KEY: {os.getenv('SENDGRID_API_KEY')}")
 
 APP_SERVER_URL = 'http://localhost:5001' if os.getenv('DEV_MODE') else 'https://lionsentry.com'
 

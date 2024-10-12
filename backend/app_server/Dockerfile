@@ -21,4 +21,4 @@ COPY . /app/
 EXPOSE 5001
 
 # Command to run the app
-CMD ["python", "-m", "app_server.app_server"]
+CMD ["python", "-m", "backend.app_server.app_server"]
