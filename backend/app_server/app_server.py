@@ -1,34 +1,30 @@
-from flask import Flask, request, jsonify, session
-from backend import public_server_template as pst
-import json
+
 import os
-import firebase_admin
-from firebase_admin import auth, firestore, credentials
-from functools import wraps
+import json
 import logging
 import datetime
+from functools import wraps
+from flask_cors import CORS
+from firebase_admin import auth, firestore
+from backend import public_server_template as pst
+from flask import Flask, request, jsonify, session
+from backend.firebase.firebase_admin_sdk import db
 from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
 
 app = Flask(__name__)
+CORS(app)
+
+base_dir = pst.get_base_directory()
 app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 pst.setup_session(app)
 pst.setup_logging(app)
 pst.setup_cors(app)
-pst.setup_after_request(app)
 
 base_dir = pst.get_base_directory()
 user_answers = {}
-
-# Firebase Admin initialization
-firebase_credentials_path = os.path.join(base_dir, 'firebase/lionsentry-firebase-adminsdk.json')
-cred = credentials.Certificate(firebase_credentials_path)
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
    
-
 def verify_firebase_token(f):
     # Decoder to verify the Firebase ID token
     @wraps(f)
@@ -50,17 +46,18 @@ def verify_firebase_token(f):
         return f(*args, **kwargs)
     return decorator
 
-
-@app.route('/generate-devotional', methods=['POST'])
+@app.route('/generate-email', methods=['POST'])
 @verify_firebase_token
-def generate_devotional_route(decoded_token):
+def generate_email_route():
+    logging.debug("Accessing /generate-email endpoint")
     try:
-        # Get the user's ID from the decoded token
-        user_id = decoded_token['uid']
+        data = request.json
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({"error": "User ID is required"}), 400
 
         # Query Firestore for the user's Why Statement
         why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
-
         if len(why_statement_docs) == 0:
             return jsonify({"error": "Why Statement not found for the user"}), 404
 
@@ -81,13 +78,44 @@ def generate_devotional_route(decoded_token):
         }
         db.collection('devotionals').add(devotional_record)
 
-        # email the devotional to the user using the email server
-        
+        return jsonify(devotional_content)
+    except Exception as e:
+        app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
+        return jsonify({"error": "Failed to generate devotional content"}), 500
+    
+@app.route('/generate-devotional', methods=['POST'])
+@verify_firebase_token
+def generate_devotional_route(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+
+        why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
+
+        if len(why_statement_docs) == 0:
+            return jsonify({"error": "Why Statement not found for the user"}), 404
+
+        why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
+
+        # Check if why_statement is a string, if not, convert it to a dictionary
+        if isinstance(why_statement, str):
+            why_statement = {"whyStatement": why_statement}
+
+        devotional_content = generate_devotional_content(why_statement)
+
+        dateTimeCreated = datetime.datetime.now().isoformat()
+        devotional_record = {
+            "title": devotional_content["Title"],
+            "biblePassage": devotional_content["BiblePassage"],
+            "personalization": devotional_content["Personalization"],
+            "journalingPrompt": devotional_content["JournalingPrompt"],
+            "dateTimeCreated": dateTimeCreated,
+            "forUser": user_id
+        }
+        db.collection('devotionals').add(devotional_record)
 
         return jsonify(devotional_content)
     except Exception as e:
-        app.logger.error(
-            f'Failed to generate devotional content: {e}', exc_info=True)
+        app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
 
 
@@ -138,9 +166,14 @@ def generate_why_statement_route(decoded_token):
         return jsonify({"error": "Failed to generate why statement"}), 500
 
     
-@app.route('/get-latest-why-statement', methods=['GET'])
+@app.route('/get-latest-why-statement', methods=['GET', 'OPTIONS'])
 @verify_firebase_token
 def get_latest_why_statement(decoded_token):
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({"message": "CORS preflight check successful"})
+        response.status_code = 200
+        return response
     try:
         user_id = decoded_token['uid']
 
@@ -203,9 +236,15 @@ def submit_answer(decoded_token):
         app.logger.error(f'Failed to submit answer: {e}', exc_info=True)
         return jsonify({"error": "Failed to submit answer"}), 500
 
-@app.route('/save-user-data-point', methods=['POST'])
+@app.route('/save-user-data-point', methods=['OPTIONS', 'POST'])
 @verify_firebase_token
 def save_user_data_point(decoded_token):
+    if request.method == 'OPTIONS':
+        # Handle preflight CORS request
+        response = jsonify({"message": "CORS preflight check successful"})
+        response.status_code = 200
+        return response
+
     try:
         data = request.get_json()
         target_user_id = data.get('targetUserId')
@@ -238,6 +277,7 @@ def save_user_data_point(decoded_token):
     except Exception as e:
         app.logger.error(f'Error in save_user_data_point: {str(e)}', exc_info=True)
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/get-questions', methods=['GET'])
 # Grab the static questions and feed them to the frontend
