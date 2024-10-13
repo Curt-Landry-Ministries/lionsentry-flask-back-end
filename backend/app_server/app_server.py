@@ -118,6 +118,71 @@ def generate_devotional_route(decoded_token):
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
 
+@app.route('/get-devotionals', methods=['GET'])
+@verify_firebase_token
+def get_devotionals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        devotionals_query = db.collection('devotionals').where('forUser', '==', user_id).order_by('dateTimeCreated', direction=firestore.Query.DESCENDING)
+        devotionals_docs = devotionals_query.stream()
+
+        devotionals = []
+        for doc in devotionals_docs:
+            devotional_data = doc.to_dict()
+            devotionals.append(devotional_data)
+
+        return jsonify(devotionals)
+    except Exception as e:
+        app.logger.error(f'Failed to get devotionals: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve devotionals"}), 500
+    
+@app.route('/save-goals', methods=['POST'])
+@verify_firebase_token
+# goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
+def save_goals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        data = request.json
+        goal = data.get('goal')
+        category = data.get('category')
+        deadline = data.get('deadline')
+        created = datetime.datetime.now().isoformat()
+        is_complete = False
+        is_deleted = False
+
+        goal_record = {
+            "goal": goal,
+            "category": category,
+            "deadline": deadline,
+            "created": created,
+            "isComplete": is_complete,
+            "isDeleted": is_deleted,
+            "forUser": user_id
+        }
+
+        db.collection('goals').add(goal_record)
+        return jsonify({"message": "Goal saved successfully"}), 200
+    except Exception as e:
+        app.logger.error(f'Failed to save goal: {e}', exc_info=True)
+        return jsonify({"error": "Failed to save goal"}), 500
+    
+@app.route('/get-goals', methods=['GET'])
+@verify_firebase_token
+def get_goals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        goals_query = db.collection('goals').where('forUser', '==', user_id).where('isDeleted', '==', False)
+        goals_docs = goals_query.stream()
+
+        goals = []
+        for doc in goals_docs:
+            goal_data = doc.to_dict()
+            goals.append(goal_data)
+
+        return jsonify(goals)
+    except Exception as e:
+        app.logger.error(f'Failed to get goals: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve goals"}), 500
 
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
