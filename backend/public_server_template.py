@@ -1,5 +1,6 @@
 import os
 import logging
+from flask import request
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from flask_cors import CORS
