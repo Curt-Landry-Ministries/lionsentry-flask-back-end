@@ -11,6 +11,10 @@ from flask import Flask, request, jsonify, session
 from backend.firebase.firebase_admin_sdk import db
 from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
+from firebase_admin import storage
+from werkzeug.utils import secure_filename
+import uuid
+
 
 app = Flask(__name__)
 CORS(app)
@@ -118,7 +122,141 @@ def generate_devotional_route(decoded_token):
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
 
+@app.route('/get-devotionals', methods=['GET'])
+@verify_firebase_token
+def get_devotionals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        devotionals_query = db.collection('devotionals').where('forUser', '==', user_id).order_by('dateTimeCreated', direction=firestore.Query.DESCENDING)
+        devotionals_docs = devotionals_query.stream()
 
+        devotionals = []
+        for doc in devotionals_docs:
+            devotional_data = doc.to_dict()
+            devotionals.append(devotional_data)
+
+        return jsonify(devotionals)
+    except Exception as e:
+        app.logger.error(f'Failed to get devotionals: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve devotionals"}), 500
+    
+@app.route('/save-goals', methods=['POST'])
+@verify_firebase_token
+# goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
+def save_goals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        data = request.json
+        goal = data.get('goal')
+        category = data.get('category')
+        deadline = data.get('deadline')
+        created = datetime.datetime.now().isoformat()
+        is_complete = False
+        is_deleted = False
+
+        goal_record = {
+            "goal": goal,
+            "category": category,
+            "deadline": deadline,
+            "created": created,
+            "isComplete": is_complete,
+            "isDeleted": is_deleted,
+            "forUser": user_id
+        }
+
+        db.collection('goals').add(goal_record)
+        return jsonify({"message": "Goal saved successfully"}), 200
+    except Exception as e:
+        app.logger.error(f'Failed to save goal: {e}', exc_info=True)
+        return jsonify({"error": "Failed to save goal"}), 500
+    
+@app.route('/get-goals', methods=['GET'])
+@verify_firebase_token
+def get_goals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        goals_query = db.collection('goals').where('forUser', '==', user_id).where('isDeleted', '==', False)
+        goals_docs = goals_query.stream()
+
+        goals = []
+        for doc in goals_docs:
+            goal_data = doc.to_dict()
+            goals.append(goal_data)
+
+        return jsonify(goals)
+    except Exception as e:
+        app.logger.error(f'Failed to get goals: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve goals"}), 500
+
+@app.route('/upload-profile-photo', methods=['POST'])
+def upload_profile_photo():
+    try:
+        # Verify if the request has a file part
+        if 'photo' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+
+        file = request.files['photo']
+
+        # Check if the user selected a file
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
+        # Ensure the file has a valid filename
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+
+            # Generate a unique filename to avoid collisions
+            unique_filename = f"{uuid.uuid4().hex}_{filename}"
+
+            # Firebase storage bucket
+            bucket = storage.bucket()
+
+            # Upload the file to Firebase Storage
+            blob = bucket.blob(f"profile_photos/{unique_filename}")
+
+            # Optionally, set the blob to be publicly accessible (if you want public access to the image)
+            blob.upload_from_file(file, content_type=file.content_type)
+            blob.make_public()  # Make the image publicly accessible
+
+            # Get the public URL
+            photo_url = blob.public_url
+
+            # Add the photo URL to the user's Firestore document
+            user_id = request.form.get('user_id')
+            user_ref = db.collection('users').document(user_id)
+            user_ref.update({"photoURL": photo_url})
+
+            # Return the URL of the uploaded file
+            return jsonify({"photo_url": photo_url}), 200
+
+        else:
+            return jsonify({"error": "Invalid file type"}), 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/get-user-info', methods=['GET'])
+@verify_firebase_token
+def get_user_info(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        user_ref = db.collection('users').document(user_id)
+        user_doc = user_ref.get()
+
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            return jsonify(user_data)
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        app.logger.error(f'Failed to get user info: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve user info"}), 500
+
+
+def allowed_file(filename):
+    """Check if the uploaded file is a valid image type."""
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
 def generate_why_statement_route(decoded_token):
