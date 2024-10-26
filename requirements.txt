@@ -11,3 +11,4 @@ Werkzeug==3.0.1
 pytz==2024.1
 langchain
 langchain-community
+anthropic==0.37.1
