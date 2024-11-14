@@ -87,26 +87,47 @@ def generate_email_route():
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
+from datetime import datetime, timedelta
+import uuid
+
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
 def generate_devotional_route(decoded_token):
     try:
         user_id = decoded_token['uid']
+        
+        # Determine the most recent 05:59 UTC (i.e., the start of the daily limit period)
+        now = datetime.utcnow()
+        if now.hour < 6:
+            reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        else:
+            reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0)
 
+        # Query devotionals created by this user since the most recent reset time
+        devotional_query = db.collection('devotionals').where('forUser', '==', user_id).where(
+            'dateTimeCreated', '>=', reset_time.isoformat())
+        devotionals_today = devotional_query.stream()
+        
+        # Check if user has reached the limit of 3 devotionals
+        if len(list(devotionals_today)) >= 3:
+            app.logger.error(f'Daily limit reached for user {user_id}')
+            return jsonify({"error": "Daily limit reached", "code": "LIMIT_REACHED"}), 429
+        
+        # Fetch the user's Why Statement
         why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
-
         if len(why_statement_docs) == 0:
             return jsonify({"error": "Why Statement not found for the user"}), 404
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
 
-        # Check if why_statement is a string, if not, convert it to a dictionary
+        # Ensure why_statement is in dictionary format
         if isinstance(why_statement, str):
             why_statement = {"whyStatement": why_statement}
 
+        # Generate the devotional content based on why_statement
         devotional_content = generate_devotional_content(why_statement)
 
-        dateTimeCreated = datetime.datetime.now().isoformat()
+        dateTimeCreated = now.isoformat()
         doc_uid = uuid.uuid4().hex
         devotional_record = {
             "title": devotional_content["Title"],
@@ -118,12 +139,17 @@ def generate_devotional_route(decoded_token):
             "doc_id": doc_uid,
             "isFavorite": False
         }
+        
+        # Save the devotional in Firestore
         doc_ref = db.collection('devotionals').add(devotional_record)
 
-        # add the doc_id as the UID in the devotional record in firebase
+        # Update the doc_id field to match Firestore's unique ID
         doc_ref[1].update({"doc_id": doc_ref[0].id})
+
+        # Log and return the devotional content
         app.logger.info(jsonify(devotional_content))
         return jsonify(devotional_content)
+        
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
