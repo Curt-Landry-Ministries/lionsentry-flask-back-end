@@ -139,7 +139,7 @@ def get_devotionals(decoded_token):
         devotionals = []
         for doc in devotionals_docs:
             devotional_data = doc.to_dict()
-            # if there's no doc_id (for legacy users), add one using the doc id
+            # if there's no doc_id (for legacy devotionals), add one using the doc id
             if 'doc_id' not in devotional_data:
                 devotional_data['doc_id'] = uuid.uuid4().hex
             devotionals.append(devotional_data)
@@ -153,6 +153,7 @@ def get_devotionals(decoded_token):
 # goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
 def save_goals(decoded_token):
     try:
+        app.logger.debug("Hit save goal endpoint")
         user_id = decoded_token['uid']
         data = request.json
         goal = data.get('goal')
@@ -161,6 +162,7 @@ def save_goals(decoded_token):
         created = datetime.datetime.now().isoformat()
         is_complete = False
         is_deleted = False
+        doc_id=uuid.uuid4().hex
 
         goal_record = {
             "goal": goal,
@@ -169,10 +171,12 @@ def save_goals(decoded_token):
             "created": created,
             "isComplete": is_complete,
             "isDeleted": is_deleted,
-            "forUser": user_id
+            "forUser": user_id,
+            "doc_id": doc_id
         }
 
         db.collection('goals').add(goal_record)
+        
         return jsonify({"message": "Goal saved successfully"}), 200
     except Exception as e:
         app.logger.error(f'Failed to save goal: {e}', exc_info=True)
@@ -189,6 +193,11 @@ def get_goals(decoded_token):
         goals = []
         for doc in goals_docs:
             goal_data = doc.to_dict()
+
+            # handle legacy goals not having doc_id's
+            if 'doc_id' not in goal_data:
+                goal_data['doc_id'] = uuid.uuid4().hex
+                doc.reference.update({"doc_id": goal_data['doc_id']})
             goals.append(goal_data)
 
         return jsonify(goals)
