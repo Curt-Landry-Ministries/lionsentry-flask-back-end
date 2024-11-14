@@ -55,7 +55,6 @@ class TestGenerateDevotional:
         assert stored_devotional['biblePassage'] == response_data['BiblePassage'], "Stored devotional bible passage mismatch"
         assert stored_devotional['personalization'] == response_data['Personalization'], "Stored devotional personalization mismatch"
         assert stored_devotional['journalingPrompt'] == response_data['JournalingPrompt'], "Stored devotional journaling prompt mismatch"
-
         # Clean up: Delete the test user
         assert self.test_auth_server.delete_user(self.test_user_id, self.test_user_token.split(' ')[1]), "Failed to delete user"
 

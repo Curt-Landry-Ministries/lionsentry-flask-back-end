@@ -107,16 +107,22 @@ def generate_devotional_route(decoded_token):
         devotional_content = generate_devotional_content(why_statement)
 
         dateTimeCreated = datetime.datetime.now().isoformat()
+        doc_uid = uuid.uuid4().hex
         devotional_record = {
             "title": devotional_content["Title"],
             "biblePassage": devotional_content["BiblePassage"],
             "personalization": devotional_content["Personalization"],
             "journalingPrompt": devotional_content["JournalingPrompt"],
             "dateTimeCreated": dateTimeCreated,
-            "forUser": user_id
+            "forUser": user_id,
+            "doc_id": doc_uid,
+            "isFavorite": False
         }
-        db.collection('devotionals').add(devotional_record)
+        doc_ref = db.collection('devotionals').add(devotional_record)
 
+        # add the doc_id as the UID in the devotional record in firebase
+        doc_ref[1].update({"doc_id": doc_ref[0].id})
+        app.logger.info(jsonify(devotional_content))
         return jsonify(devotional_content)
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
@@ -133,8 +139,10 @@ def get_devotionals(decoded_token):
         devotionals = []
         for doc in devotionals_docs:
             devotional_data = doc.to_dict()
+            # if there's no doc_id (for legacy users), add one using the doc id
+            if 'doc_id' not in devotional_data:
+                devotional_data['doc_id'] = uuid.uuid4().hex
             devotionals.append(devotional_data)
-
         return jsonify(devotionals)
     except Exception as e:
         app.logger.error(f'Failed to get devotionals: {e}', exc_info=True)
