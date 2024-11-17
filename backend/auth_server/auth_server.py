@@ -50,11 +50,11 @@ def initialize_onboarding_flow(user_id):
     steps_data = [{"stepName": step, "dateCompleted": None, "dateCreated": datetime.utcnow()} for step in steps]
 
     # Create onboarding flow document
-    db.collection('onboardingFlows').document(user_id).set({
-        "version": 1,
-        "userID": user_id,
-        "steps": steps_data
-    })
+    # db.collection('onboardingFlows').document(user_id).set({
+    #     "version": 1,
+    #     "userID": user_id,
+    #     "steps": steps_data
+    # })
 
 
 @auth_app.route('/login-user', methods=['POST'])
@@ -146,7 +146,7 @@ def delete_user():
         if not decoded_token or decoded_token['uid'] != user_id:
             return jsonify({"error": "Unauthorized request"}), 403
 
-        collections = ['users', 'onboardingFlows', 'onboardingAnswers', 'whyStatements', 'dailyDevotionals']
+        collections = ['users', 'onboardingAnswers', 'whyStatements', 'dailyDevotionals']
         
         # For each collection, if a document exists for the user, delete it
         for collection in collections:

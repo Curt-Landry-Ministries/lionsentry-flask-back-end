@@ -87,37 +87,69 @@ def generate_email_route():
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
+from datetime import datetime, timedelta
+import uuid
+
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
 def generate_devotional_route(decoded_token):
     try:
         user_id = decoded_token['uid']
+        
+        # Determine the most recent 05:59 UTC (i.e., the start of the daily limit period)
+        now = datetime.utcnow()
+        if now.hour < 6:
+            reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        else:
+            reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0)
 
+        # Query devotionals created by this user since the most recent reset time
+        devotional_query = db.collection('devotionals').where('forUser', '==', user_id).where(
+            'dateTimeCreated', '>=', reset_time.isoformat())
+        devotionals_today = devotional_query.stream()
+        
+        # Check if user has reached the limit of 3 devotionals
+        if len(list(devotionals_today)) >= 3:
+            app.logger.error(f'Daily limit reached for user {user_id}')
+            return jsonify({"error": "Daily limit reached", "code": "LIMIT_REACHED"}), 429
+        
+        # Fetch the user's Why Statement
         why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
-
         if len(why_statement_docs) == 0:
             return jsonify({"error": "Why Statement not found for the user"}), 404
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
 
-        # Check if why_statement is a string, if not, convert it to a dictionary
+        # Ensure why_statement is in dictionary format
         if isinstance(why_statement, str):
             why_statement = {"whyStatement": why_statement}
 
+        # Generate the devotional content based on why_statement
         devotional_content = generate_devotional_content(why_statement)
 
-        dateTimeCreated = datetime.datetime.now().isoformat()
+        dateTimeCreated = now.isoformat()
+        doc_uid = uuid.uuid4().hex
         devotional_record = {
             "title": devotional_content["Title"],
             "biblePassage": devotional_content["BiblePassage"],
             "personalization": devotional_content["Personalization"],
             "journalingPrompt": devotional_content["JournalingPrompt"],
             "dateTimeCreated": dateTimeCreated,
-            "forUser": user_id
+            "forUser": user_id,
+            "doc_id": doc_uid,
+            "isFavorite": False
         }
-        db.collection('devotionals').add(devotional_record)
+        
+        # Save the devotional in Firestore
+        doc_ref = db.collection('devotionals').add(devotional_record)
 
+        # Update the doc_id field to match Firestore's unique ID
+        doc_ref[1].update({"doc_id": doc_ref[0].id})
+
+        # Log and return the devotional content
+        app.logger.info(jsonify(devotional_content))
         return jsonify(devotional_content)
+        
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
@@ -133,8 +165,10 @@ def get_devotionals(decoded_token):
         devotionals = []
         for doc in devotionals_docs:
             devotional_data = doc.to_dict()
+            # if there's no doc_id (for legacy devotionals), add one using the doc id
+            if 'doc_id' not in devotional_data:
+                devotional_data['doc_id'] = uuid.uuid4().hex
             devotionals.append(devotional_data)
-
         return jsonify(devotionals)
     except Exception as e:
         app.logger.error(f'Failed to get devotionals: {e}', exc_info=True)
@@ -145,6 +179,7 @@ def get_devotionals(decoded_token):
 # goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
 def save_goals(decoded_token):
     try:
+        app.logger.debug("Hit save goal endpoint")
         user_id = decoded_token['uid']
         data = request.json
         goal = data.get('goal')
@@ -153,6 +188,7 @@ def save_goals(decoded_token):
         created = datetime.datetime.now().isoformat()
         is_complete = False
         is_deleted = False
+        doc_id=uuid.uuid4().hex
 
         goal_record = {
             "goal": goal,
@@ -161,10 +197,12 @@ def save_goals(decoded_token):
             "created": created,
             "isComplete": is_complete,
             "isDeleted": is_deleted,
-            "forUser": user_id
+            "forUser": user_id,
+            "doc_id": doc_id
         }
 
         db.collection('goals').add(goal_record)
+        
         return jsonify({"message": "Goal saved successfully"}), 200
     except Exception as e:
         app.logger.error(f'Failed to save goal: {e}', exc_info=True)
@@ -181,6 +219,11 @@ def get_goals(decoded_token):
         goals = []
         for doc in goals_docs:
             goal_data = doc.to_dict()
+
+            # handle legacy goals not having doc_id's
+            if 'doc_id' not in goal_data:
+                goal_data['doc_id'] = uuid.uuid4().hex
+                doc.reference.update({"doc_id": goal_data['doc_id']})
             goals.append(goal_data)
 
         return jsonify(goals)
