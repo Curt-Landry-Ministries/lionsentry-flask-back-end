@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from flask_cors import CORS
 from firebase_admin import auth, firestore
@@ -87,8 +88,7 @@ def generate_email_route():
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
     
-from datetime import datetime, timedelta
-import uuid
+
 
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
