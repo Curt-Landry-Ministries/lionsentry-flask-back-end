@@ -87,8 +87,6 @@ def generate_email_route():
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
-    
-
 
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
@@ -174,6 +172,51 @@ def get_devotionals(decoded_token):
         app.logger.error(f'Failed to get devotionals: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve devotionals"}), 500
     
+@app.route('/update-devotional', methods=['PUT'])
+@verify_firebase_token
+def update_devotional(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        data = request.get_json()
+
+        # Validate request data
+        if not data or 'doc_id' not in data or not isinstance(data['doc_id'], str):
+            return jsonify({"error": "Invalid request data"}), 400
+
+        doc_id = data['doc_id']
+        update_fields = data.get('updateFields', {})
+
+        if not isinstance(update_fields, dict) or not update_fields:
+            return jsonify({"error": "Invalid or empty updateFields"}), 400
+
+        # Fetch the devotional document
+        devotional_ref = db.collection('devotionals').document(doc_id)
+        devotional_doc = devotional_ref.get()
+
+        if not devotional_doc.exists:
+            return jsonify({"error": "Devotional not found"}), 404
+
+        devotional_data = devotional_doc.to_dict()
+
+        # Verify the devotional belongs to the authenticated user
+        if devotional_data.get('forUser') != user_id:
+            return jsonify({"error": "Unauthorized access to devotional"}), 403
+
+        # Update allowed fields only
+        allowed_fields = {'title', 'content', 'dateTimeCreated', 'tags'}
+        update_data = {key: value for key, value in update_fields.items() if key in allowed_fields}
+
+        if not update_data:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        devotional_ref.update(update_data)
+
+        return jsonify({"message": "Devotional updated successfully", "updatedFields": update_data}), 200
+
+    except Exception as e:
+        app.logger.error(f'Failed to update devotional: {e}', exc_info=True)
+        return jsonify({"error": "Failed to update devotional"}), 500
+
 @app.route('/save-goals', methods=['POST'])
 @verify_firebase_token
 # goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
@@ -231,6 +274,52 @@ def get_goals(decoded_token):
         app.logger.error(f'Failed to get goals: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve goals"}), 500
 
+@app.route('/update-goal', methods=['PUT'])
+@verify_firebase_token
+def update_goal(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        data = request.get_json()
+
+        # Validate request data
+        if not data or 'doc_id' not in data or not isinstance(data['doc_id'], str):
+            return jsonify({"error": "Invalid request data"}), 400
+
+        doc_id = data['doc_id']
+        update_fields = data.get('updateFields', {})
+
+        if not isinstance(update_fields, dict) or not update_fields:
+            return jsonify({"error": "Invalid or empty updateFields"}), 400
+
+        # Fetch the goal document
+        goal_ref = db.collection('goals').document(doc_id)
+        goal_doc = goal_ref.get()
+
+        if not goal_doc.exists:
+            return jsonify({"error": "Goal not found"}), 404
+
+        goal_data = goal_doc.to_dict()
+
+        # Verify the goal belongs to the authenticated user
+        if goal_data.get('forUser') != user_id:
+            return jsonify({"error": "Unauthorized access to goal"}), 403
+
+        # Update the allowed fields only
+        allowed_fields = {'title', 'description', 'completed', 'dueDate'}
+        update_data = {key: value for key, value in update_fields.items() if key in allowed_fields}
+
+        if not update_data:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        goal_ref.update(update_data)
+
+        return jsonify({"message": "Goal updated successfully", "updatedFields": update_data}), 200
+
+    except Exception as e:
+        app.logger.error(f'Failed to update goal: {e}', exc_info=True)
+        return jsonify({"error": "Failed to update goal"}), 500
+
+
 @app.route('/upload-profile-photo', methods=['POST'])
 def upload_profile_photo():
     try:
@@ -274,7 +363,6 @@ def upload_profile_photo():
 
         else:
             return jsonify({"error": "Invalid file type"}), 400
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
