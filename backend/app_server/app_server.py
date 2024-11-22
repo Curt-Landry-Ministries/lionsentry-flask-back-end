@@ -421,7 +421,7 @@ def generate_why_statement_route(decoded_token):
         save_to_firestore = request.json.get("saveToFirestore", True)
         response_data = {"whyStatement": why_statement_content.get("whyStatement")}
         if save_to_firestore:
-            dateTimeCreated = datetime.datetime.now().isoformat()
+            dateTimeCreated = datetime.now().isoformat()
             why_statement_record = {
                 "whyStatement": response_data['whyStatement'],
                 "dateTimeCreated": dateTimeCreated,
