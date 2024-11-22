@@ -95,21 +95,21 @@ def generate_devotional_route(decoded_token):
         user_id = decoded_token['uid']
         
         # Determine the most recent 05:59 UTC (i.e., the start of the daily limit period)
-        now = datetime.utcnow()
-        if now.hour < 6:
-            reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0) - timedelta(days=1)
-        else:
-            reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        # now = datetime.utcnow()
+        # if now.hour < 6:
+        #     reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        # else:
+        #     reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0)
 
-        # Query devotionals created by this user since the most recent reset time
-        devotional_query = db.collection('devotionals').where('forUser', '==', user_id).where(
-            'dateTimeCreated', '>=', reset_time.isoformat())
-        devotionals_today = devotional_query.stream()
+        # # Query devotionals created by this user since the most recent reset time
+        # devotional_query = db.collection('devotionals').where('forUser', '==', user_id).where(
+        #     'dateTimeCreated', '>=', reset_time.isoformat())
+        # devotionals_today = devotional_query.stream()
         
-        # Check if user has reached the limit of 3 devotionals
-        if len(list(devotionals_today)) >= 3:
-            app.logger.error(f'Daily limit reached for user {user_id}')
-            return jsonify({"error": "Daily limit reached", "code": "LIMIT_REACHED"}), 429
+        # # Check if user has reached the limit of 3 devotionals
+        # if len(list(devotionals_today)) >= 3:
+        #     app.logger.error(f'Daily limit reached for user {user_id}')
+        #     return jsonify({"error": "Daily limit reached", "code": "LIMIT_REACHED"}), 429
         
         # Fetch the user's Why Statement
         why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
@@ -125,7 +125,7 @@ def generate_devotional_route(decoded_token):
         # Generate the devotional content based on why_statement
         devotional_content = generate_devotional_content(why_statement)
 
-        dateTimeCreated = now.isoformat()
+        dateTimeCreated = datetime.datetime.now().isoformat()
         doc_uid = uuid.uuid4().hex
         devotional_record = {
             "title": devotional_content["Title"],
@@ -388,6 +388,7 @@ def allowed_file(filename):
     """Check if the uploaded file is a valid image type."""
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
 def generate_why_statement_route(decoded_token):
@@ -462,7 +463,6 @@ def get_latest_why_statement(decoded_token):
     except Exception as e:
         app.logger.error(f'Failed to retrieve latest why statement: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve latest why statement"}), 500
-
 
 @app.route('/submit-onboarding-answer', methods=['POST'])
 @verify_firebase_token  
