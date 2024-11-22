@@ -181,34 +181,33 @@ def update_devotional(decoded_token):
             return jsonify({"error": "Invalid request data"}), 400
 
         doc_id = data['doc_id']
-        update_fields = data.get('updateFields', {})
+        is_favorite = data.get('isFavorite')
 
-        if not isinstance(update_fields, dict) or not update_fields:
-            return jsonify({"error": "Invalid or empty updateFields"}), 400
+        if is_favorite is None or not isinstance(is_favorite, bool):
+            return jsonify({"error": "Invalid or missing isFavorite value"}), 400
 
-        # Fetch the devotional document
-        devotional_ref = db.collection('devotionals').document(doc_id)
-        devotional_doc = devotional_ref.get()
+        # Fetch the devotional document by doc_id
+        devotionals_query = db.collection('devotionals').where('doc_id', '==', doc_id).limit(1)
+        devotional_docs = list(devotionals_query.stream())
 
-        if not devotional_doc.exists:
+        if not devotional_docs:
             return jsonify({"error": "Devotional not found"}), 404
 
+        devotional_doc = devotional_docs[0]
         devotional_data = devotional_doc.to_dict()
 
         # Verify the devotional belongs to the authenticated user
         if devotional_data.get('forUser') != user_id:
             return jsonify({"error": "Unauthorized access to devotional"}), 403
 
-        # Update allowed fields only
-        allowed_fields = {'title', 'content', 'dateTimeCreated', 'tags'}
-        update_data = {key: value for key, value in update_fields.items() if key in allowed_fields}
+        # Update only the isFavorite field
+        devotional_doc.reference.update({'isFavorite': is_favorite})
 
-        if not update_data:
-            return jsonify({"error": "No valid fields to update"}), 400
-
-        devotional_ref.update(update_data)
-
-        return jsonify({"message": "Devotional updated successfully", "updatedFields": update_data}), 200
+        return jsonify({
+            "message": "Devotional updated successfully",
+            "doc_id": doc_id,
+            "updatedFields": {"isFavorite": is_favorite}
+        }), 200
 
     except Exception as e:
         app.logger.error(f'Failed to update devotional: {e}', exc_info=True)
@@ -223,6 +222,7 @@ def save_goals(decoded_token):
         user_id = decoded_token['uid']
         data = request.json
         goal = data.get('goal')
+        description = data.get('description')
         category = data.get('category')
         deadline = data.get('deadline')
         created = datetime.datetime.now().isoformat()
@@ -232,6 +232,7 @@ def save_goals(decoded_token):
 
         goal_record = {
             "goal": goal,
+            "description": description,
             "category": category,
             "deadline": deadline,
             "created": created,
@@ -288,34 +289,39 @@ def update_goal(decoded_token):
         if not isinstance(update_fields, dict) or not update_fields:
             return jsonify({"error": "Invalid or empty updateFields"}), 400
 
-        # Fetch the goal document
-        goal_ref = db.collection('goals').document(doc_id)
-        goal_doc = goal_ref.get()
+        # Fetch the goal document by doc_id
+        goals_query = db.collection('goals').where('doc_id', '==', doc_id).limit(1)
+        goal_docs = list(goals_query.stream())
 
-        if not goal_doc.exists:
+        if not goal_docs:
             return jsonify({"error": "Goal not found"}), 404
 
+        goal_doc = goal_docs[0]
         goal_data = goal_doc.to_dict()
 
         # Verify the goal belongs to the authenticated user
         if goal_data.get('forUser') != user_id:
             return jsonify({"error": "Unauthorized access to goal"}), 403
 
-        # Update the allowed fields only
-        allowed_fields = {'title', 'description', 'completed', 'dueDate'}
+        # Filter allowed fields for update
+        allowed_fields = {'category', 'deadline', 'goal', 'description'}
         update_data = {key: value for key, value in update_fields.items() if key in allowed_fields}
 
         if not update_data:
             return jsonify({"error": "No valid fields to update"}), 400
 
-        goal_ref.update(update_data)
+        # Update the allowed fields in the document
+        goal_doc.reference.update(update_data)
 
-        return jsonify({"message": "Goal updated successfully", "updatedFields": update_data}), 200
+        return jsonify({
+            "message": "Goal updated successfully",
+            "doc_id": doc_id,
+            "updatedFields": update_data
+        }), 200
 
     except Exception as e:
         app.logger.error(f'Failed to update goal: {e}', exc_info=True)
         return jsonify({"error": "Failed to update goal"}), 500
-
 
 @app.route('/upload-profile-photo', methods=['POST'])
 def upload_profile_photo():
