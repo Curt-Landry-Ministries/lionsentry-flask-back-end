@@ -50,11 +50,11 @@ def initialize_onboarding_flow(user_id):
     steps_data = [{"stepName": step, "dateCompleted": None, "dateCreated": datetime.utcnow()} for step in steps]
 
     # Create onboarding flow document
-    db.collection('onboardingFlows').document(user_id).set({
-        "version": 1,
-        "userID": user_id,
-        "steps": steps_data
-    })
+    # db.collection('onboardingFlows').document(user_id).set({
+    #     "version": 1,
+    #     "userID": user_id,
+    #     "steps": steps_data
+    # })
 
 
 @auth_app.route('/login-user', methods=['POST'])
@@ -108,7 +108,7 @@ def create_user_manually():
         return jsonify({"error": str(e)}), 500
     
 @auth_app.route('/get-id-token', methods=['POST'])
-# Get a Firebase ID token for a user
+# Get a Firebase ID token and refresh token for a user
 def get_id_token():
     try:
         data = request.get_json()
@@ -127,11 +127,55 @@ def get_id_token():
 
         if response.status_code == 200:
             response_data = response.json()
-            return jsonify({"idToken": response_data.get("idToken")}), 200
+            return jsonify({
+                "idToken": response_data.get("idToken"),
+                "refreshToken": response_data.get("refreshToken"),
+                "expiresIn": response_data.get("expiresIn")  # Optional: Token validity in seconds
+            }), 200
         else:
             return jsonify({"error": "Authentication failed"}), response.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+
+@auth_app.route('/refresh-id-token', methods=['POST'])
+def refresh_id_token():
+    try:
+        # Parse the incoming request
+        data = request.get_json()
+        refresh_token = data.get('refreshToken')
+
+        if not refresh_token:
+            return jsonify({"error": "Refresh token is required"}), 400
+
+        # Get Firebase API key from environment
+        firebase_api_key = os.environ.get('FIREBASE_API_KEY')
+        url = f"https://securetoken.googleapis.com/v1/token?key={firebase_api_key}"
+
+        # Prepare payload
+        payload = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token
+        }
+
+        # Make the request to refresh the token
+        response = requests.post(url, data=payload)
+
+        if response.status_code == 200:
+            response_data = response.json()
+            return jsonify({
+                "idToken": response_data.get("id_token"),
+                "refreshToken": response_data.get("refresh_token"),
+                "expiresIn": response_data.get("expires_in")
+            }), 200
+        else:
+            return jsonify({"error": "Failed to refresh token"}), response.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 @auth_app.route('/delete-user', methods=['POST'])
 # Delete a user and all of the other data associated with them
@@ -146,7 +190,7 @@ def delete_user():
         if not decoded_token or decoded_token['uid'] != user_id:
             return jsonify({"error": "Unauthorized request"}), 403
 
-        collections = ['users', 'onboardingFlows', 'onboardingAnswers', 'whyStatements', 'dailyDevotionals']
+        collections = ['users', 'onboardingAnswers', 'whyStatements', 'dailyDevotionals']
         
         # For each collection, if a document exists for the user, delete it
         for collection in collections:

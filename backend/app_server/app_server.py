@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from flask_cors import CORS
 from firebase_admin import auth, firestore
@@ -11,6 +12,10 @@ from flask import Flask, request, jsonify, session
 from backend.firebase.firebase_admin_sdk import db
 from backend.app_server.algorithms.LLM.generate_devotional import generate_devotional_content
 from backend.app_server.algorithms.LLM.generate_why_statement import generate_why_statement as generate_why_statement_content
+from firebase_admin import storage
+from werkzeug.utils import secure_filename
+import uuid
+
 
 app = Flask(__name__)
 CORS(app)
@@ -67,7 +72,7 @@ def generate_email_route():
         devotional_content = generate_devotional_content(why_statement)
 
         # Store the devotional in Firestore
-        dateTimeCreated = datetime.datetime.now().isoformat()
+        dateTimeCreated = datetime.now().isoformat()
         devotional_record = {
             "title": devotional_content["Title"],
             "biblePassage": devotional_content["BiblePassage"],
@@ -82,42 +87,310 @@ def generate_email_route():
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
-    
+
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
 def generate_devotional_route(decoded_token):
     try:
         user_id = decoded_token['uid']
+        
+        # Determine the most recent 05:59 UTC (i.e., the start of the daily limit period)
+        # now = datetime.utcnow()
+        # if now.hour < 6:
+        #     reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        # else:
+        #     reset_time = now.replace(hour=6, minute=0, second=0, microsecond=0)
 
+        # # Query devotionals created by this user since the most recent reset time
+        # devotional_query = db.collection('devotionals').where('forUser', '==', user_id).where(
+        #     'dateTimeCreated', '>=', reset_time.isoformat())
+        # devotionals_today = devotional_query.stream()
+        
+        # # Check if user has reached the limit of 3 devotionals
+        # if len(list(devotionals_today)) >= 3:
+        #     app.logger.error(f'Daily limit reached for user {user_id}')
+        #     return jsonify({"error": "Daily limit reached", "code": "LIMIT_REACHED"}), 429
+        
+        # Fetch the user's Why Statement
         why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
-
         if len(why_statement_docs) == 0:
             return jsonify({"error": "Why Statement not found for the user"}), 404
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
 
-        # Check if why_statement is a string, if not, convert it to a dictionary
+        # Ensure why_statement is in dictionary format
         if isinstance(why_statement, str):
             why_statement = {"whyStatement": why_statement}
 
+        # Generate the devotional content based on why_statement
         devotional_content = generate_devotional_content(why_statement)
 
-        dateTimeCreated = datetime.datetime.now().isoformat()
+        dateTimeCreated = datetime.now().isoformat()
+        doc_uid = uuid.uuid4().hex
         devotional_record = {
             "title": devotional_content["Title"],
             "biblePassage": devotional_content["BiblePassage"],
             "personalization": devotional_content["Personalization"],
             "journalingPrompt": devotional_content["JournalingPrompt"],
             "dateTimeCreated": dateTimeCreated,
-            "forUser": user_id
+            "forUser": user_id,
+            "doc_id": doc_uid,
+            "isFavorite": False
         }
+        
+        # Save the devotional in Firestore
         db.collection('devotionals').add(devotional_record)
 
-        return jsonify(devotional_content)
+        # Log and return the devotional content
+        app.logger.info(jsonify(devotional_record))
+        return jsonify(devotional_record)
+        
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
 
+@app.route('/get-devotionals', methods=['GET'])
+@verify_firebase_token
+def get_devotionals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        devotionals_query = db.collection('devotionals').where('forUser', '==', user_id).order_by('dateTimeCreated', direction=firestore.Query.DESCENDING)
+        devotionals_docs = devotionals_query.stream()
+
+        devotionals = []
+        for doc in devotionals_docs:
+            devotional_data = doc.to_dict()
+            # if there's no doc_id (for legacy devotionals), add one using the doc id
+            if 'doc_id' not in devotional_data:
+                devotional_data['doc_id'] = uuid.uuid4().hex
+            devotionals.append(devotional_data)
+        return jsonify(devotionals)
+    except Exception as e:
+        app.logger.error(f'Failed to get devotionals: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve devotionals"}), 500
+    
+@app.route('/update-devotional', methods=['PUT'])
+@verify_firebase_token
+def update_devotional(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        data = request.get_json()
+
+        # Validate request data
+        if not data or 'doc_id' not in data or not isinstance(data['doc_id'], str):
+            return jsonify({"error": "Invalid request data"}), 400
+
+        doc_id = data['doc_id']
+        is_favorite = data.get('isFavorite')
+
+        if is_favorite is None or not isinstance(is_favorite, bool):
+            return jsonify({"error": "Invalid or missing isFavorite value"}), 400
+
+        # Fetch the devotional document by doc_id
+        devotionals_query = db.collection('devotionals').where('doc_id', '==', doc_id).limit(1)
+        devotional_docs = list(devotionals_query.stream())
+
+        if not devotional_docs:
+            return jsonify({"error": "Devotional not found"}), 404
+
+        devotional_doc = devotional_docs[0]
+        devotional_data = devotional_doc.to_dict()
+
+        # Verify the devotional belongs to the authenticated user
+        if devotional_data.get('forUser') != user_id:
+            return jsonify({"error": "Unauthorized access to devotional"}), 403
+
+        # Update only the isFavorite field
+        devotional_doc.reference.update({'isFavorite': is_favorite})
+
+        return jsonify({
+            "message": "Devotional updated successfully",
+            "doc_id": doc_id,
+            "updatedFields": {"isFavorite": is_favorite}
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f'Failed to update devotional: {e}', exc_info=True)
+        return jsonify({"error": "Failed to update devotional"}), 500
+
+@app.route('/save-goals', methods=['POST'])
+@verify_firebase_token
+# goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
+def save_goals(decoded_token):
+    try:
+        app.logger.debug("Hit save goal endpoint")
+        user_id = decoded_token['uid']
+        data = request.json
+        goal = data.get('goal')
+        description = data.get('description')
+        category = data.get('category')
+        deadline = data.get('deadline')
+        created = datetime.now().isoformat()
+        is_complete = False
+        is_deleted = False
+        doc_id=uuid.uuid4().hex
+
+        goal_record = {
+            "goal": goal,
+            "description": description,
+            "category": category,
+            "deadline": deadline,
+            "created": created,
+            "isComplete": is_complete,
+            "isDeleted": is_deleted,
+            "forUser": user_id,
+            "doc_id": doc_id
+        }
+
+        db.collection('goals').add(goal_record)
+        
+        return jsonify({"message": "Goal saved successfully"}), 200
+    except Exception as e:
+        app.logger.error(f'Failed to save goal: {e}', exc_info=True)
+        return jsonify({"error": "Failed to save goal"}), 500
+    
+@app.route('/get-goals', methods=['GET'])
+@verify_firebase_token
+def get_goals(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        goals_query = db.collection('goals').where('forUser', '==', user_id).where('isDeleted', '==', False)
+        goals_docs = goals_query.stream()
+
+        goals = []
+        for doc in goals_docs:
+            goal_data = doc.to_dict()
+
+            # handle legacy goals not having doc_id's
+            if 'doc_id' not in goal_data:
+                goal_data['doc_id'] = uuid.uuid4().hex
+                doc.reference.update({"doc_id": goal_data['doc_id']})
+            goals.append(goal_data)
+
+        return jsonify(goals)
+    except Exception as e:
+        app.logger.error(f'Failed to get goals: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve goals"}), 500
+
+@app.route('/update-goal', methods=['PUT'])
+@verify_firebase_token
+def update_goal(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        data = request.get_json()
+
+        # Validate request data
+        if not data or 'doc_id' not in data or not isinstance(data['doc_id'], str):
+            return jsonify({"error": "Invalid request data. 'doc_id' is required."}), 400
+
+        if 'updateFields' not in data or not isinstance(data['updateFields'], dict):
+            return jsonify({"error": "Invalid request data. 'updateFields' is required."}), 400
+
+        doc_id = data['doc_id']
+        update_fields = data['updateFields']
+
+        # Allowed fields for updating
+        allowed_fields = {'goal', 'category', 'deadline', 'description', 'isComplete'}
+        update_data = {key: value for key, value in update_fields.items() if key in allowed_fields}
+
+        if not update_data:
+            return jsonify({"error": "No valid fields to update."}), 400
+
+        # Fetch the goal document by doc_id
+        goals_query = db.collection('goals').where('doc_id', '==', doc_id).limit(1)
+        goal_docs = list(goals_query.stream())
+
+        if not goal_docs:
+            return jsonify({"error": "Goal not found."}), 404
+
+        goal_doc = goal_docs[0]
+        goal_data = goal_doc.to_dict()
+
+        # Verify the goal belongs to the authenticated user
+        if goal_data.get('forUser') != user_id:
+            return jsonify({"error": "Unauthorized access to this goal."}), 403
+
+        # Update the document with valid fields
+        goal_doc.reference.update(update_data)
+
+        return jsonify({
+            "message": "Goal updated successfully",
+            "doc_id": doc_id,
+            "updatedFields": update_data
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Failed to update goal: {e}", exc_info=True)
+        return jsonify({"error": "Failed to update goal."}), 500
+
+@app.route('/upload-profile-photo', methods=['POST'])
+def upload_profile_photo():
+    try:
+        # Verify if the request has a file part
+        if 'photo' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+
+        file = request.files['photo']
+
+        # Check if the user selected a file
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
+        # Ensure the file has a valid filename
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+
+            # Generate a unique filename to avoid collisions
+            unique_filename = f"{uuid.uuid4().hex}_{filename}"
+
+            # Firebase storage bucket
+            bucket = storage.bucket()
+
+            # Upload the file to Firebase Storage
+            blob = bucket.blob(f"profile_photos/{unique_filename}")
+
+            # Optionally, set the blob to be publicly accessible (if you want public access to the image)
+            blob.upload_from_file(file, content_type=file.content_type)
+            blob.make_public()  # Make the image publicly accessible
+
+            # Get the public URL
+            photo_url = blob.public_url
+
+            # Add the photo URL to the user's Firestore document
+            user_id = request.form.get('user_id')
+            user_ref = db.collection('users').document(user_id)
+            user_ref.update({"photoURL": photo_url})
+
+            # Return the URL of the uploaded file
+            return jsonify({"photo_url": photo_url}), 200
+
+        else:
+            return jsonify({"error": "Invalid file type"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/get-user-info', methods=['GET'])
+@verify_firebase_token
+def get_user_info(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+        user_ref = db.collection('users').document(user_id)
+        user_doc = user_ref.get()
+
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            return jsonify(user_data)
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        app.logger.error(f'Failed to get user info: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve user info"}), 500
+
+
+def allowed_file(filename):
+    """Check if the uploaded file is a valid image type."""
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
@@ -148,7 +421,7 @@ def generate_why_statement_route(decoded_token):
         save_to_firestore = request.json.get("saveToFirestore", True)
         response_data = {"whyStatement": why_statement_content.get("whyStatement")}
         if save_to_firestore:
-            dateTimeCreated = datetime.datetime.now().isoformat()
+            dateTimeCreated = datetime.now().isoformat()
             why_statement_record = {
                 "whyStatement": response_data['whyStatement'],
                 "dateTimeCreated": dateTimeCreated,
@@ -194,7 +467,6 @@ def get_latest_why_statement(decoded_token):
         app.logger.error(f'Failed to retrieve latest why statement: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve latest why statement"}), 500
 
-
 @app.route('/submit-onboarding-answer', methods=['POST'])
 @verify_firebase_token  
 def submit_answer(decoded_token):
@@ -203,7 +475,7 @@ def submit_answer(decoded_token):
         question = request.json.get("question")
         answer_text = request.json.get("answer")
         question_index = request.json.get("questionIndex")
-        dateTimeAnswered = datetime.datetime.now().isoformat()  # Current timestamp
+        dateTimeAnswered = datetime.now().isoformat()  # Current timestamp
 
         # Construct the answer object
         answer_object = {
