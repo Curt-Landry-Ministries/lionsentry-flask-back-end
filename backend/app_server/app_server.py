@@ -72,7 +72,7 @@ def generate_email_route():
         devotional_content = generate_devotional_content(why_statement)
 
         # Store the devotional in Firestore
-        dateTimeCreated = datetime.datetime.now().isoformat()
+        dateTimeCreated = datetime.now().isoformat()
         devotional_record = {
             "title": devotional_content["Title"],
             "biblePassage": devotional_content["BiblePassage"],
@@ -225,7 +225,7 @@ def save_goals(decoded_token):
         description = data.get('description')
         category = data.get('category')
         deadline = data.get('deadline')
-        created = datetime.datetime.now().isoformat()
+        created = datetime.now().isoformat()
         is_complete = False
         is_deleted = False
         doc_id=uuid.uuid4().hex
@@ -475,7 +475,7 @@ def submit_answer(decoded_token):
         question = request.json.get("question")
         answer_text = request.json.get("answer")
         question_index = request.json.get("questionIndex")
-        dateTimeAnswered = datetime.datetime.now().isoformat()  # Current timestamp
+        dateTimeAnswered = datetime.now().isoformat()  # Current timestamp
 
         # Construct the answer object
         answer_object = {
