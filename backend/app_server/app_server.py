@@ -125,7 +125,7 @@ def generate_devotional_route(decoded_token):
         # Generate the devotional content based on why_statement
         devotional_content = generate_devotional_content(why_statement)
 
-        dateTimeCreated = datetime.datetime.now().isoformat()
+        dateTimeCreated = datetime.now().isoformat()
         doc_uid = uuid.uuid4().hex
         devotional_record = {
             "title": devotional_content["Title"],
@@ -139,10 +139,7 @@ def generate_devotional_route(decoded_token):
         }
         
         # Save the devotional in Firestore
-        doc_ref = db.collection('devotionals').add(devotional_record)
-
-        # Update the doc_id field to match Firestore's unique ID
-        doc_ref[1].update({"doc_id": doc_ref[0].id})
+        db.collection('devotionals').add(devotional_record)
 
         # Log and return the devotional content
         app.logger.info(jsonify(devotional_content))
