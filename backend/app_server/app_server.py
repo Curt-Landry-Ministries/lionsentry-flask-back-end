@@ -142,8 +142,8 @@ def generate_devotional_route(decoded_token):
         db.collection('devotionals').add(devotional_record)
 
         # Log and return the devotional content
-        app.logger.info(jsonify(devotional_content))
-        return jsonify(devotional_content)
+        app.logger.info(jsonify(devotional_record))
+        return jsonify(devotional_record)
         
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
