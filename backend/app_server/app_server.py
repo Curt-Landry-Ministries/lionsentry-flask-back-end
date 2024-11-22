@@ -290,7 +290,7 @@ def update_goal(decoded_token):
         update_fields = data['updateFields']
 
         # Allowed fields for updating
-        allowed_fields = {'goal', 'category', 'deadline', 'description'}
+        allowed_fields = {'goal', 'category', 'deadline', 'description', 'isComplete'}
         update_data = {key: value for key, value in update_fields.items() if key in allowed_fields}
 
         if not update_data:
