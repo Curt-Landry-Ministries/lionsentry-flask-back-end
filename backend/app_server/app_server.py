@@ -396,31 +396,32 @@ def allowed_file(filename):
 @verify_firebase_token
 def generate_why_statement_route(decoded_token):
     try:
-        user_id = decoded_token['uid']
+        # Log incoming request payload
+        app.logger.info("Incoming JSON payload: %s", request.json)
 
-        # Query Firestore for all answer documents for the user
-        answers_query = db.collection('onboardingAnswers').where('userID', '==', user_id)
-        answers_docs = answers_query.stream()
+        # Validate input
+        if isinstance(request.json, list):
+            # If payload is a list, process it directly
+            answers = request.json
+            save_to_firestore = True  # Default if not specified in this case
+        elif isinstance(request.json, dict):
+            # If payload is a dict, extract answers and saveToFirestore
+            answers = request.json.get("answers", [])
+            save_to_firestore = request.json.get("saveToFirestore", True)
+        else:
+            return jsonify({"error": "Malformed data: Expected JSON object or array"}), 400
 
-        # Collect the most recent answer for each question
-        recent_answers = {}
-        for answer_doc in answers_docs:
-            answer_data = answer_doc.to_dict()
-            question = answer_data['question']
-            # Assuming the answers are sorted in the array with the most recent last
-            most_recent_answer = answer_data['answers'][-1]
-            recent_answers[question] = most_recent_answer
-
-        # Get the answer texts and create a list of question-answer pairs
-        questions_answers = [{"question": q, "answer": a['answer']} for q, a in recent_answers.items()]
+        if not answers:
+            return jsonify({"error": "No answers provided"}), 400
 
         # Generate the Why Statement content
+        questions_answers = [{"question": ans["questions"], "answer": ans["answer"]} for ans in answers]
         why_statement_content = generate_why_statement_content(questions_answers)
 
-        # Check if the user wants to save the WhyStatement record to Firestore
-        save_to_firestore = request.json.get("saveToFirestore", True)
+        # Prepare response data
         response_data = {"whyStatement": why_statement_content.get("whyStatement")}
         if save_to_firestore:
+            user_id = decoded_token['uid']
             dateTimeCreated = datetime.now().isoformat()
             why_statement_record = {
                 "whyStatement": response_data['whyStatement'],
@@ -437,8 +438,7 @@ def generate_why_statement_route(decoded_token):
     except Exception as e:
         app.logger.error("Unhandled exception: %s", e, exc_info=True)
         return jsonify({"error": "Failed to generate why statement"}), 500
-
-    
+ 
 @app.route('/get-latest-why-statement', methods=['GET', 'OPTIONS'])
 @verify_firebase_token
 def get_latest_why_statement(decoded_token):
