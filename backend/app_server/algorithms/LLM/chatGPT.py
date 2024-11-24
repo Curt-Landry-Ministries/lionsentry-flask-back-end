@@ -1,20 +1,19 @@
-import openai
 import os
 from dotenv import load_dotenv
 from backend.app_server.algorithms.LLM.generate_devotional import base_prompts, example_outputs, user_info, DevotionalPrompt
+from langchain.prompts import ChatPromptTemplate
+from langchain.chat_models import ChatOpenAI
 
-"""
-
-The idea here is to have one static chatGPT class that can be used everywhere we want to generate a chat response. 
-This way, once we start introducing validators, tree of thought (ToT), etc., we can just add them to this class and they're reusable
-"""
+# Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
 class ChatGPT:
     @staticmethod
     def generate_devotional():
+        # Initialize the LLM with the OpenAI key
+        llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4", temperature=0.7)
+
         # Generate the prompts with example data
         prompts = []
         previous_outputs = []
@@ -38,20 +37,19 @@ class ChatGPT:
         # Collect the values of each prompt
         for prompt in prompts:
             print("Working on prompt: " + prompt.title)
+            
+            # Create the ChatPromptTemplate
             messages = [
-                {"role": "system", "content": "You are a Christian pastor who wants to help people use the Bible to guide their life."}]
-            messages.append(
-                {"role": "user", "content": prompt.input_with_example})
-            messages.append(
-                {"role": "assistant", "content": prompt.example_output})
-            messages.append(
-                {"role": "user", "content": prompt.input + user_info})
-            chat = openai.ChatCompletion.create(
-                model="gpt-4o",
-                messages=messages
-            )
-            # Store the response
-            responses[prompt.title] = chat['choices'][0]['message']['content']
+                {"role": "system", "content": "You are a Christian pastor who wants to help people use the Bible to guide their life."},
+                {"role": "user", "content": prompt.input_with_example},
+                {"role": "assistant", "content": prompt.example_output},
+                {"role": "user", "content": prompt.input + user_info}
+            ]
+
+            # Generate the response using LangChain's LLM
+            response = llm.invoke(messages).content
+            
+            responses[prompt.title] = response
 
         # Format the output
         formatted_output = f"Title\n{responses['Devotional Title']}"
@@ -63,3 +61,9 @@ class ChatGPT:
         formatted_output = formatted_output.replace('\\"', '"')
 
         return formatted_output
+
+# Example usage
+if __name__ == "__main__":
+    chatgpt = ChatGPT()
+    result = chatgpt.generate_devotional()
+    print(result)
