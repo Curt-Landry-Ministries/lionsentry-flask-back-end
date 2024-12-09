@@ -17,25 +17,5 @@ services:
       - "5002:5002"
     env_file:
       - ./backend/.env
-    
-  # email_server:
-  #   build:
-  #     context: .
-  #     dockerfile: backend/email_server/Dockerfile
-  #   ports:
-  #     - "5003:5003"
-  #   env_file:
-  #     - ./backend/.env
 
-  test_service:
-    build: 
-      context: .
-      dockerfile: backend/Dockerfile.test
-    depends_on:
-      - app_server
-      - auth_server
-    env_file:
-      - ./backend/.env
-    mem_limit: 4g  # Set the memory limit to 4 GB
-    profiles: ["test"]  # Assign a profile to this service
 
