@@ -16,6 +16,9 @@ CORS(auth_app)
 base_dir = pst.get_base_directory()
 load_dotenv()
 
+BASE_URL = "https://api.infusionsoft.com/crm/rest/v1"
+ACCESS_TOKEN = os.environ.get('KEAP_API_KEY') 
+
 def on_create_user(user_id, email):
     """
     Users have two kinds of records - 1:1 records and 1:many records. We should intialize all of the 1:1 records here (e.g. user info, onboarding flow, etc.)
@@ -39,6 +42,7 @@ def on_create_user(user_id, email):
 
     # initialize an onboarding flow for this user
     initialize_onboarding_flow(user_id)
+    
 
 def initialize_onboarding_flow(user_id):
     # Load onboarding steps from JSON file
@@ -137,8 +141,6 @@ def get_id_token():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-
 @auth_app.route('/refresh-id-token', methods=['POST'])
 def refresh_id_token():
     try:
@@ -174,9 +176,6 @@ def refresh_id_token():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-
-
 @auth_app.route('/delete-user', methods=['POST'])
 # Delete a user and all of the other data associated with them
 def delete_user():
@@ -207,6 +206,99 @@ def delete_user():
         # Detailed error logging
         return jsonify({"error": str(e), "detailed_error": repr(e)}), 500
 
+
+def search_create_update_keap_contact(email, family_name, given_name, tag_name="LS User"):
+    """
+    Searches for a user by email in the Keap API and creates the contact if not found.
+    If the contact exists, it adds the specified tag if not already applied.
+
+    Args:
+        email (str): Email to search or create the contact.
+        family_name (str): Last name of the contact.
+        given_name (str): First name of the contact.
+        tag_name (str): Tag to add to the contact. Defaults to "LS User".
+
+    Returns:
+        dict: Contact data or error response.
+    """
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+
+    # Step 1: Search for contact by email
+    search_url = f"{BASE_URL}/contacts?email={email}"
+    search_response = requests.get(search_url, headers=headers)
+    if search_response.status_code != 200:
+        return {"error": "Failed to search for contact", "details": search_response.text}
+
+    contacts = search_response.json().get("contacts", [])
+    contact_id = contacts[0]["id"] if contacts else None
+
+    # Step 2: If contact exists, check and add the tag
+    if contact_id:
+        tag_id = get_tag_id(tag_name)
+        if tag_id:
+            add_tag_to_contact(contact_id, tag_id)
+        return {"message": "Contact exists and updated", "contact_id": contact_id}
+
+    # Step 3: Create new contact
+    create_url = f"{BASE_URL}/contacts"
+    payload = {
+        "email_addresses": [{"email": email, "field": "EMAIL1"}],
+        "family_name": family_name,
+        "given_name": given_name,
+    }
+    create_response = requests.put(create_url, headers=headers, json=payload)
+    if create_response.status_code not in [200, 201]:
+        return {"error": "Failed to create contact", "details": create_response.text}
+
+    new_contact_id = create_response.json().get("id")
+    tag_id = get_tag_id(tag_name)
+    if tag_id:
+        add_tag_to_contact(new_contact_id, tag_id)
+
+    return {"message": "Contact created and tagged", "contact_id": new_contact_id}
+
+
+def get_tag_id(tag_name):
+    """Retrieve tag ID by tag name."""
+    tags_url = f"{BASE_URL}/tags"
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    response = requests.get(tags_url, headers=headers)
+
+    if response.status_code == 200:
+        for tag in response.json().get("tags", []):
+            if tag["name"] == tag_name:
+                return tag["id"]
+    print(f"Error retrieving tag ID for '{tag_name}':", response.text)
+    return None
+
+
+def add_tag_to_contact(contact_id, tag_id):
+    """Add a tag to a Keap contact."""
+    tags_url = f"{BASE_URL}/contacts/{contact_id}/tags"
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"tagIds": [tag_id]}
+
+    response = requests.post(tags_url, headers=headers, json=payload)
+    if response.status_code not in [200, 201]:
+        print("Error adding tag:", response.text)
+
+
+@auth_app.route('/create-keap-user', methods=['POST'])
+def create_keap_user():
+    """Flask route to create or update a Keap user."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No input provided"}), 400
+
+    email = data.get("email")
+    first_name = data.get("firstName")
+    last_name = data.get("lastName")
+
+    if not email or not first_name or not last_name:
+        return jsonify({"error": "Missing required fields: email, firstName, or lastName"}), 400
+
+    response = search_create_update_keap_contact(email, last_name, first_name)
+    return jsonify(response)
 
 
 if __name__ == '__main__':

@@ -29,6 +29,8 @@ pst.setup_cors(app)
 
 base_dir = pst.get_base_directory()
 user_answers = {}
+
+# Auth Token
    
 def verify_firebase_token(f):
     # Decoder to verify the Firebase ID token
@@ -50,6 +52,9 @@ def verify_firebase_token(f):
             return jsonify({"error": "Invalid authentication token"}), 401
         return f(*args, **kwargs)
     return decorator
+
+
+# generate email route - probably going away
 
 @app.route('/generate-email', methods=['POST'])
 @verify_firebase_token
@@ -87,6 +92,8 @@ def generate_email_route():
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
+
+# starrt devotionals routes
 
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
@@ -213,6 +220,9 @@ def update_devotional(decoded_token):
         app.logger.error(f'Failed to update devotional: {e}', exc_info=True)
         return jsonify({"error": "Failed to update devotional"}), 500
 
+# end devotionals routes
+# start goals routes
+
 @app.route('/save-goals', methods=['POST'])
 @verify_firebase_token
 # goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
@@ -323,6 +333,9 @@ def update_goal(decoded_token):
         app.logger.error(f"Failed to update goal: {e}", exc_info=True)
         return jsonify({"error": "Failed to update goal."}), 500
 
+# end goals routes
+# start user routes
+
 @app.route('/upload-profile-photo', methods=['POST'])
 def upload_profile_photo():
     try:
@@ -391,6 +404,9 @@ def allowed_file(filename):
     """Check if the uploaded file is a valid image type."""
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+# end user routes
+# start why statement routes
 
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
@@ -466,6 +482,10 @@ def get_latest_why_statement(decoded_token):
     except Exception as e:
         app.logger.error(f'Failed to retrieve latest why statement: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve latest why statement"}), 500
+
+
+# end why statement routes
+# start user routes
 
 @app.route('/submit-onboarding-answer', methods=['POST'])
 @verify_firebase_token  
