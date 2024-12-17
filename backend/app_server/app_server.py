@@ -72,9 +72,9 @@ def generate_email_route():
             return jsonify({"error": "Why Statement not found for the user"}), 404
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
-
+        user_fname = why_statement_docs[0].to_dict().get('firstName', '')
         # Generate a devotional using the user's Why Statement
-        devotional_content = generate_devotional_content(why_statement)
+        devotional_content = generate_devotional_content(user_fname, why_statement)
 
         # Store the devotional in Firestore
         dateTimeCreated = datetime.now().isoformat()

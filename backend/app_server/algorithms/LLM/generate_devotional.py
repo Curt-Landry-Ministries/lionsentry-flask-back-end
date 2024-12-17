@@ -1,7 +1,7 @@
 import os
 import re
 import json
-import random
+import secrets
 import anthropic
 from datetime import datetime
 from dotenv import load_dotenv
@@ -28,13 +28,13 @@ THEMES = {
 # Consolidated content
 ACTION_STEPS = """
 <action_steps>
-<step>Pray for the peace of Jerusalem - Align yourself with God's heart for Israel.</step>
-<step>Stand with Israel - Make it clear whose side you're on.</step>
-<step>Discipline leads to freedom - Be disciplined in all areas of life.</step>
-<step>Cut off distractions - Remove anything that pulls you away from God's purpose.</step>
-<step>Ask God for direction - Don't make a move without asking Him first.</step>
-<step>Serve others - Be a giver, not a taker; look for ways to sow into lives.</step>
-<step>Trust God fully - Let go of control and trust Him with every area of life.</step>
+  <step>Pray for the peace of Jerusalem - Align yourself with God's heart for Israel.</step>
+  <step>Stand with Israel - Make it clear whose side you're on.</step>
+  <step>Discipline leads to freedom - Be disciplined in all areas of life.</step>
+  <step>Cut off distractions - Remove anything that pulls you away from God's purpose.</step>
+  <step>Ask God for direction - Don't make a move without asking Him first.</step>
+  <step>Serve others - Be a giver, not a taker; look for ways to sow into lives.</step>
+  <step>Trust God fully - Let go of control and trust Him with every area of life.</step>
 </action_steps>
 """
 
@@ -117,7 +117,7 @@ STYLE_GUIDE = """
     <voice>Emulate Curt Landry's authoritative yet compassionate tone</voice>
     <word_choice>Use terminology and phrasing consistent with "Reclaiming Our Forgotten Heritage"</word_choice>
     <theological_emphasis>Focus on the believer's identity in Christ and walking out their purpose in covenant with God</theological_emphasis>
-  </style_guide>
+</style_guide>
   
   <book_reference>
     <book_info>
@@ -247,39 +247,79 @@ VERSES = [
     "2 Timothy 3:16-17", "Titus 2:11-12", "Hebrews 11:1", "James 1:22",
     "1 Peter 1:13", "2 Peter 3:18", "1 John 4:19", "Jude 1:20-21",
     "Revelation 21:5"
-    ]
+]
 
 # Select the theme and verse for the current day
 current_day = datetime.now().strftime("%A")
-theme_content = THEMES.get(current_day, "Today, focus on living in faith and expecting the supernatural.")
-selected_verse = random.choice(VERSES)
+theme_content = THEMES.get(current_day)
+selected_verse = secrets.choice(VERSES)
 
 # Devotional prompt template
-DEVOTIONAL_PROMPT_TEMPLATE = f"""
-<devotional_prompt>
-<instructions>
-Generate a daily devotional based on <theme> and <verse>, grounded in <action_steps>, <curt_landry_principles>, and <ministry_values>. Use the <style_guide> for tone and approach. Provide response in json format.
-</instructions>
-<format>
-  <introduction>Write a 2-sentence encouragement combining today's theme and verse.</introduction>
-  <verse>Quote the given verse using NKJV format: "{selected_verse}".</verse>
-  <insight>Provide an impactful revelation based on the verse in 3 sentences.</insight>
-  <life_application>Offer a hope-filled life application tailored to the reader in 2 sentences.</life_application>
-  <declaration>Write a 1-sentence affirmation based on the theme and verse.</declaration>
-  <prayer>Offer a short prayer aligned with the theme and reader's purpose.</prayer>
-</format>
-<theme>{theme_content}</theme>
-<verse>{selected_verse}</verse>
-{ACTION_STEPS}
-{CURT_LANDRY_PRINCIPLES}
-{MINISTRY_VALUES}
-{STYLE_GUIDE}
-</devotional_prompt>
-"""
+def generate_prompt_template(reader_name, reader_purpose_statement):
+  DEVOTIONAL_PROMPT_TEMPLATE = f"""
+  <devotional_prompt>
+    <instructions>
+      <instruction>Return the response as json</instruction>
+      <instruction>Generate a personalized daily devotional based on <devotional_parameters> and <reader_profile> that encourages the reader to live a life of impact and fulfill their God-given purpose. Create a new devotional each time prompted, following the <format> and <rules>. This devotional should encourage them to take action in alignment with <action_steps>, and be consistent and grounded in <curt_landry_principles> and <ministry_values>. Use the <style_guide> and <book_reference> to inform the tone and approach.</instruction>
+    </instructions>
 
-def generate_devotional_content(reader_name="", reader_purpose_statement=""):
+    <format>
+      <title>
+        Write an impactful title that grabs the reader's attention and makes them excited about reading the devotional relevant to today's topic and verse. Output in title tag.
+      </title>
+      <introduction>
+        Write a 2-sentence encouragement to the reader, by name, combining today's topic, context of the verse, their personal purpose statement, and related context into a powerful statement. Speak over them the goodness of God, their purpose, their identity, and that they do and will live a life of purpose. Output in introduction tag.
+      </introduction>
+      <verse>
+        Quote the given verse using the NKJV Bible, be sure to reference the book, chapter, and verse (Example: - Hebrews 11:1). Output in verse tag.
+      </verse>
+      <insight>
+        Combine the most impactful revelation and insight into the power and meaning of this verse, distilled from all sources, including Curt Landry's teachings, and focused on encouraging the reader forward in purpose, impact, and in alignment with their purpose statement in 3 sentences. Output in insight tag.
+      </insight>
+      <life_application>
+        Focus on the verse and its context. Pull from all sources and related topics to find the most important positive and hope-filled life application for the reader in 2 sentences that encourages them to live a life of impact and fulfill their purpose. Tailor this to who they are and the context given. Output in life_application tag.
+      </life_application>
+      <declaration>
+        Turn the main life application and the reader's purpose statement into a 1-sentence positive affirmation and declaration that the reader can declare over themselves. Output in declaration tag.
+      </declaration>
+      <prayer>
+        Turn the main life application into a short prayer for the reader, asking God to make the application real in their life. End by calling out and reminding them of their identity and purpose in Christ in alignment with their purpose statement. Output in prayer tag.
+      </prayer>
+      <journal>
+        Turn the main life application in the context of the reader's purpose statement into a journaling prompt that challenges them to think more deeply about how this message applies to their life and what action steps they can take today to move into a place of greater impact and purpose. Output in journal tag. 
+      </journal>
+    </format>
+
+    <rules>
+      <rule>Tailor the output to the context and reader's profile and purpose statement</rule>
+      <rule>Don't include word counts in the output</rule>
+      <rule>Provide only the requested information. Your response will be used in an application expecting just the requested content. No filler.</rule>
+      <rule>Speak directly to the reader named in the reader profile</rule>
+      <rule>Primarily source information and commentary from the given context and Curt Landry or Curt Landry Ministries</rule>
+      <rule>Use teachings from similar teachers: John Kilpatrick, Michael Brown, Steve Hill, Paul Wilbur, Robert Henderson</rule>
+      <rule>Also reference the following as context: Strong's concordance, Vine's expository Dictionary, Mounce Reverse Interlinear New Testament, Gems from the Greek Vol. 1 & 2, Baker's Evangelical Dictionary of Biblical Theology, Easton's Bible Dictionary, Hitchcock's Bible Names Dictionary, King James Dictionary, Smith's Bible Dictionary, Matthew Henry's Commentary, The Spirit-filled Life New Testament Commentary Series, The Pentecostal Old Testament and New Testament Commentaries, Baker Exegetical Commentary series, Pentecostal Commentary Series, Applied Commentary, Enduring Word Bible Commentary</rule>
+    </rules>
+    <devotional_parameters>
+      <theme>{theme_content}</theme>
+      <focus_verse>{selected_verse}</focus_verse>
+    </devotional_parameters>
+
+    <reader_profile>
+      <name>{{reader_name}}</name>
+      <purpose_statement>{{reader_purpose_statement}}</purpose_statement
+    </reader_profile>
+
+    {ACTION_STEPS}
+    {CURT_LANDRY_PRINCIPLES}
+    {MINISTRY_VALUES}
+    {STYLE_GUIDE}
+  </devotional_prompt>
+  """
+  return DEVOTIONAL_PROMPT_TEMPLATE
+
+def generate_devotional_content(reader_name, reader_purpose_statement):
     """Generate devotional content personalized for the reader."""
-    personalized_prompt = DEVOTIONAL_PROMPT_TEMPLATE.replace("{{name}}", reader_name)
+    personalized_prompt = generate_prompt_template(reader_name, reader_purpose_statement)
     
     # Generate devotional via Anthropic API
     response = client.messages.create(
@@ -295,17 +335,6 @@ def generate_devotional_content(reader_name="", reader_purpose_statement=""):
      # Clean the response content
     raw_response = response.content[0].text
     return raw_response
-
-def parse_xml_to_json(xml_string):
-    """Parse XML string into a clean JSON dictionary."""
-    try:
-        root = ET.fromstring(xml_string)
-        devotional = {}
-        for child in root:
-            devotional[child.tag] = re.sub(r'\s+', ' ', child.text.strip()) if child.text else ""
-        return devotional
-    except ET.ParseError:
-        return {"error": "Failed to parse XML response."}
 
 # Example usage
 if __name__ == "__main__":
