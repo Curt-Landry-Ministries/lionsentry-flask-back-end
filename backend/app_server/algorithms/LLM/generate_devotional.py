@@ -305,8 +305,8 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
     </devotional_parameters>
 
     <reader_profile>
-      <name>{{reader_name}}</name>
-      <purpose_statement>{{reader_purpose_statement}}</purpose_statement
+      <name>{reader_name}</name>
+      <purpose_statement>{reader_purpose_statement}</purpose_statement
     </reader_profile>
 
     {ACTION_STEPS}
