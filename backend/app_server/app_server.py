@@ -29,6 +29,8 @@ pst.setup_cors(app)
 
 base_dir = pst.get_base_directory()
 user_answers = {}
+
+# Auth Token
    
 def verify_firebase_token(f):
     # Decoder to verify the Firebase ID token
@@ -51,6 +53,9 @@ def verify_firebase_token(f):
         return f(*args, **kwargs)
     return decorator
 
+
+# generate email route - probably going away
+
 @app.route('/generate-email', methods=['POST'])
 @verify_firebase_token
 def generate_email_route():
@@ -67,9 +72,9 @@ def generate_email_route():
             return jsonify({"error": "Why Statement not found for the user"}), 404
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
-
+        user_fname = why_statement_docs[0].to_dict().get('firstName', '')
         # Generate a devotional using the user's Why Statement
-        devotional_content = generate_devotional_content(why_statement)
+        devotional_content = generate_devotional_content(user_fname, why_statement)
 
         # Store the devotional in Firestore
         dateTimeCreated = datetime.now().isoformat()
@@ -87,6 +92,8 @@ def generate_email_route():
     except Exception as e:
         app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
         return jsonify({"error": "Failed to generate devotional content"}), 500
+
+# starrt devotionals routes
 
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
@@ -118,20 +125,44 @@ def generate_devotional_route(decoded_token):
 
         why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
 
+        # Query to fetch user's firstName
+        user_doc = db.collection('users').document(user_id).get()
+        if not user_doc.exists:
+            return jsonify({"error": "User not found"}), 404
+
+        user_data = user_doc.to_dict()
+        first_name = user_data.get('firstName', 'Member')
+
+        print(first_name)
+
         # Ensure why_statement is in dictionary format
         if isinstance(why_statement, str):
             why_statement = {"whyStatement": why_statement}
 
         # Generate the devotional content based on why_statement
-        devotional_content = generate_devotional_content(why_statement)
+        devotional_content = generate_devotional_content(first_name, why_statement)
+
+        # Check if devotional_content is a string and parse it to a dictionary
+        if isinstance(devotional_content, str):
+            try:
+                devotional_content = json.loads(devotional_content)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON: {e}")
+                return jsonify({"error": "Failed to parse devotional content"}), 500
+
+        # Debugging to confirm it's a dictionary
+        print(type(devotional_content))
+        print(devotional_content)
 
         dateTimeCreated = datetime.now().isoformat()
         doc_uid = uuid.uuid4().hex
         devotional_record = {
-            "title": devotional_content["Title"],
-            "biblePassage": devotional_content["BiblePassage"],
-            "personalization": devotional_content["Personalization"],
-            "journalingPrompt": devotional_content["JournalingPrompt"],
+            "introduction": devotional_content["introduction"],
+            "verse": devotional_content["verse"],
+            "insight": devotional_content["insight"],
+            "life_application": devotional_content["life_application"],
+            "declaration": devotional_content["declaration"],
+            "prayer": devotional_content["prayer"],
             "dateTimeCreated": dateTimeCreated,
             "forUser": user_id,
             "doc_id": doc_uid,
@@ -212,6 +243,9 @@ def update_devotional(decoded_token):
     except Exception as e:
         app.logger.error(f'Failed to update devotional: {e}', exc_info=True)
         return jsonify({"error": "Failed to update devotional"}), 500
+
+# end devotionals routes
+# start goals routes
 
 @app.route('/save-goals', methods=['POST'])
 @verify_firebase_token
@@ -323,6 +357,9 @@ def update_goal(decoded_token):
         app.logger.error(f"Failed to update goal: {e}", exc_info=True)
         return jsonify({"error": "Failed to update goal."}), 500
 
+# end goals routes
+# start user routes
+
 @app.route('/upload-profile-photo', methods=['POST'])
 def upload_profile_photo():
     try:
@@ -392,6 +429,9 @@ def allowed_file(filename):
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
+# end user routes
+# start why statement routes
+
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
 def generate_why_statement_route(decoded_token):
@@ -416,22 +456,39 @@ def generate_why_statement_route(decoded_token):
 
         # Generate the Why Statement content
         questions_answers = [{"question": ans["questions"], "answer": ans["answer"]} for ans in answers]
+
+        # Parse the string to a dictionary
         why_statement_content = generate_why_statement_content(questions_answers)
+        print(why_statement_content)
 
-        # Prepare response data
-        response_data = {"whyStatement": why_statement_content.get("whyStatement")}
-        if save_to_firestore:
-            user_id = decoded_token['uid']
-            dateTimeCreated = datetime.now().isoformat()
-            why_statement_record = {
-                "whyStatement": response_data['whyStatement'],
-                "dateTimeCreated": dateTimeCreated,
-                "forUser": user_id
+        try:
+            # Convert JSON string to Python dictionary
+            why_statement_content = json.loads(why_statement_content)
+
+            # Prepare response data
+            response_data = {
+                "whyStatement": why_statement_content.get("why_statement"),
+                "purposeStatement": why_statement_content.get("purpose_statement")
             }
-            doc_ref = db.collection('whyStatements').add(why_statement_record)[1]
-            response_data['doc_id'] = doc_ref.id
 
-        return jsonify(response_data)
+            if save_to_firestore:
+                user_id = decoded_token['uid']
+                dateTimeCreated = datetime.now().isoformat()
+                why_statement_record = {
+                    "whyStatement": response_data['whyStatement'],
+                    "purposeStatement": response_data['purposeStatement'],
+                    "dateTimeCreated": dateTimeCreated,
+                    "forUser": user_id
+                }
+                doc_ref = db.collection('whyStatements').add(why_statement_record)[1]
+                response_data['doc_id'] = doc_ref.id
+
+            return jsonify(response_data)
+
+        except json.JSONDecodeError as e:
+            print("Failed to parse JSON:", e)
+            return jsonify({"error": "Invalid response format"}), 500
+
     except KeyError as e:
         app.logger.error("KeyError: %s. Data received: %s", e, request.json)
         return jsonify({"error": "Malformed data"}), 400
@@ -466,6 +523,10 @@ def get_latest_why_statement(decoded_token):
     except Exception as e:
         app.logger.error(f'Failed to retrieve latest why statement: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve latest why statement"}), 500
+
+
+# end why statement routes
+# start user routes
 
 @app.route('/submit-onboarding-answer', methods=['POST'])
 @verify_firebase_token  
