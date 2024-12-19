@@ -16,8 +16,17 @@ CORS(auth_app)
 base_dir = pst.get_base_directory()
 load_dotenv()
 
+# ENVIRONMENT VARIABLES
+TAG_ID = str(os.environ.get('TAG_ID'))  # Tag ID as a string
+ACCESS_TOKEN = os.environ.get('KEAP_API_KEY')  # Keap API key
 BASE_URL = "https://api.infusionsoft.com/crm/rest/v1"
-ACCESS_TOKEN = os.environ.get('KEAP_API_KEY') 
+
+# HEADERS for requests
+HEADERS = {
+    "Authorization": f"Bearer {ACCESS_TOKEN}",
+    "Content-Type": "application/json"
+}
+
 
 def on_create_user(user_id, email):
     """
@@ -207,80 +216,109 @@ def delete_user():
         return jsonify({"error": str(e), "detailed_error": repr(e)}), 500
 
 
-def search_create_update_keap_contact(email, family_name, given_name, tag_name="LS User"):
+def search_and_create_or_update_contact(email: str, family_name: str, given_name: str, middle_name: str = None):
     """
-    Searches for a user by email in the Keap API and creates the contact if not found.
-    If the contact exists, it adds the specified tag if not already applied.
-
-    Args:
-        email (str): Email to search or create the contact.
-        family_name (str): Last name of the contact.
-        given_name (str): First name of the contact.
-        tag_name (str): Tag to add to the contact. Defaults to "LS User".
-
-    Returns:
-        dict: Contact data or error response.
+    Searches for a contact by email. If found, applies the tag if not already applied.
+    If not found, creates a new contact and applies the tag.
     """
-    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
 
-    # Step 1: Search for contact by email
+    # 1. Search for the contact by email
     search_url = f"{BASE_URL}/contacts?email={email}"
-    search_response = requests.get(search_url, headers=headers)
-    if search_response.status_code != 200:
-        return {"error": "Failed to search for contact", "details": search_response.text}
+    search_response = requests.get(search_url, headers=HEADERS)
 
-    contacts = search_response.json().get("contacts", [])
-    contact_id = contacts[0]["id"] if contacts else None
+    if search_response.status_code == 200:
+        contacts = search_response.json().get("contacts", [])
+        if contacts:
+            contact = contacts[0]  # Take the first contact
+            contact_id = contact.get("id")
 
-    # Step 2: If contact exists, check and add the tag
-    if contact_id:
-        tag_id = get_tag_id(tag_name)
-        if tag_id:
-            add_tag_to_contact(contact_id, tag_id)
-        return {"message": "Contact exists and updated", "contact_id": contact_id}
+            print(f"Contact found: ID={contact_id}, Email={email}")
+            # Check for existing tags before applying
+            if tag_already_applied(contact_id, TAG_ID):
+                print(f"Tag already applied to contact ID={contact_id}.")
+                return {"message": "Tag already exists for contact", "contact_id": contact_id}
+            else:
+                add_tag_result = add_tag_to_contact(contact_id, TAG_ID)
+                if add_tag_result.get("error"):
+                    print(f"Error adding tag: {add_tag_result['error']}")
+                    return {"error": "Failed to apply tag", "contact_id": contact_id}
+                else:
+                    print(f"Tag successfully applied to existing contact (ID={contact_id}).")
+                    return {"message": "Tag applied to existing contact", "contact_id": contact_id}
 
-    # Step 3: Create new contact
+    elif search_response.status_code != 404:
+        print(f"Error searching for contact: {search_response.text}")
+        return {"error": "Error searching contact", "details": search_response.text}
+
+    # 2. Create the contact if not found
+    print("Contact not found. Creating a new contact...")
     create_url = f"{BASE_URL}/contacts"
     payload = {
         "email_addresses": [{"email": email, "field": "EMAIL1"}],
         "family_name": family_name,
         "given_name": given_name,
+        "middle_name": middle_name,
     }
-    create_response = requests.put(create_url, headers=headers, json=payload)
-    if create_response.status_code not in [200, 201]:
-        return {"error": "Failed to create contact", "details": create_response.text}
+    create_response = requests.post(create_url, headers=HEADERS, json=payload)
 
-    new_contact_id = create_response.json().get("id")
-    tag_id = get_tag_id(tag_name)
-    if tag_id:
-        add_tag_to_contact(new_contact_id, tag_id)
+    if create_response.status_code in [200, 201]:
+        new_contact = create_response.json()
+        contact_id = new_contact.get("id")
+        print(f"New contact created: ID={contact_id}")
 
-    return {"message": "Contact created and tagged", "contact_id": new_contact_id}
+        # Apply the tag to the new contact
+        add_tag_result = add_tag_to_contact(contact_id, TAG_ID)
+        if add_tag_result.get("error"):
+            print(f"Error adding tag to new contact: {add_tag_result['error']}")
+            return {"error": "Failed to apply tag to new contact", "contact_id": contact_id}
+        else:
+            print(f"Tag successfully applied to new contact (ID={contact_id}).")
+            return {"message": "New contact created and tagged", "contact_id": contact_id}
+    else:
+        print(f"Error creating contact: {create_response.text}")
+        return {"error": "Error creating contact", "details": create_response.text}
 
 
-def get_tag_id(tag_name):
-    """Retrieve tag ID by tag name."""
-    tags_url = f"{BASE_URL}/tags"
-    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
-    response = requests.get(tags_url, headers=headers)
+def tag_already_applied(contact_id: int, tag_id: str):
+    """
+    Checks if a specific tag is already applied to a contact.
+    """
+    tags_url = f"{BASE_URL}/contacts/{contact_id}/tags"
+    response = requests.get(tags_url, headers=HEADERS)
 
     if response.status_code == 200:
-        for tag in response.json().get("tags", []):
-            if tag["name"] == tag_name:
-                return tag["id"]
-    print(f"Error retrieving tag ID for '{tag_name}':", response.text)
-    return None
+        existing_tags = response.json().get("tags", [])
+        print(f"Raw existing tags response: {existing_tags}")  # Debugging line
+
+        # Extract tag IDs from the nested structure
+        tag_ids = [str(tag.get("tag", {}).get("id")) for tag in existing_tags if "tag" in tag and "id" in tag["tag"]]
+        print(f"Existing tag IDs for contact {contact_id}: {tag_ids}")
+
+        # Check if the tag_id exists
+        return tag_id in tag_ids
+    else:
+        print(f"Error fetching tags for contact {contact_id}: {response.text}")
+    return False
 
 
-def add_tag_to_contact(contact_id, tag_id):
-    """Add a tag to a Keap contact."""
+def add_tag_to_contact(contact_id: int, tag_id: str):
+    """
+    Adds a tag to a contact.
+    """
     tags_url = f"{BASE_URL}/contacts/{contact_id}/tags"
-    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
-    payload = {"tagIds": [tag_id]}
 
-    response = requests.post(tags_url, headers=headers, json=payload)
-    if response.status_code not in [200, 201]:
-        print("Error adding tag:", response.text)
+    payload = {"tagIds": [TAG_ID]}
+    print(f"Sending payload to add tag: {payload}")  # Debugging line
+
+    response = requests.post(tags_url, headers=HEADERS, json=payload)
+
+    if response.status_code in [200, 201]:
+        print(f"Tag successfully applied: {response.json()}")
+        return {"success": True, "contact_id": contact_id, "tag_id": TAG_ID}
+    else:
+        print(f"Failed to apply tag: {response.status_code} - {response.text}")
+        return {"error": f"Error adding tag: {response.text}"}
+
 
 
 @auth_app.route('/create-keap-user', methods=['POST'])
@@ -297,8 +335,11 @@ def create_keap_user():
     if not email or not first_name or not last_name:
         return jsonify({"error": "Missing required fields: email, firstName, or lastName"}), 400
 
-    response = search_create_update_keap_contact(email, last_name, first_name)
-    return jsonify(response)
+    response = search_and_create_or_update_contact(email, last_name, first_name)
+    if "error" in response:
+        return jsonify({"status": "failure", "details": response}), 500
+    else:
+        return jsonify({"status": "success", "details": response}), 200
 
 
 if __name__ == '__main__':
