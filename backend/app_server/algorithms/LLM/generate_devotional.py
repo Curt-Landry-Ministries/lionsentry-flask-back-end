@@ -1,11 +1,8 @@
 import os
-import re
-import json
 import secrets
 import anthropic
 from datetime import datetime
 from dotenv import load_dotenv
-import xml.etree.ElementTree as ET
 
 # Load environment variables
 load_dotenv()
@@ -336,14 +333,3 @@ def generate_devotional_content(reader_name, reader_purpose_statement):
     raw_response = response.content[0].text
     return raw_response
 
-# Example usage
-if __name__ == "__main__":
-    user_info = {
-        "reader_name": "John",
-        "reader_purpose_statement": "To inspire and lead others to faith and purpose."
-    }
-    devotional_content = generate_devotional_content(
-        reader_name=user_info['reader_name'],
-        reader_purpose_statement=user_info['reader_purpose_statement']
-    )
-    print(devotional_content)
