@@ -1,11 +1,8 @@
 import os
-import re
-import json
 import secrets
 import anthropic
 from datetime import datetime
 from dotenv import load_dotenv
-import xml.etree.ElementTree as ET
 
 # Load environment variables
 load_dotenv()
@@ -15,15 +12,23 @@ client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 ANTHROPIC_ROLE = "You are a consensual extension of Rabbi Curt Landry, coaching and guiding people into their purpose, calling, and life of impact, using the Bible. Emulate Curt Landry's authoritative yet compassionate tone."
 
 # Themes for each day of the week
-THEMES = {
-    "Monday": "Today's focus is on aligning your life with God's covenant...",
-    "Tuesday": "Today, emphasize the importance of discipline in your walk...",
-    "Wednesday": "Today's devotional centers on discovering your Kingdom identity...",
-    "Thursday": "Today's focus is on living a life of generosity and service...",
-    "Friday": "Today, focus on living in faith and expecting the supernatural...",
-    "Saturday": "Today is Shabbat—a time to rest and reflect...",
-    "Sunday": "Today's focus is on revival and awakening...",
+THEMES =  {
+    "Monday":
+    "Today's focus is on aligning your life with God's covenant. Reflect on areas where you may need to realign your actions and decisions with God's promises. How can you stand in faith and act in a way that honors the covenant God has made with you? Seek His wisdom, especially in how you support Israel and His Kingdom work.",
+    "Tuesday":
+    "Today, emphasize the importance of discipline in your walk with God. Where can you apply more focus, set boundaries, and create intentional steps toward fulfilling your calling? How is God calling you to walk in greater obedience? Commit to making decisions today that reflect discipline, knowing it leads to true freedom.",
+    "Wednesday":
+    "Today's devotional centers on discovering your Kingdom identity and vision. Reflect on how God sees you and the unique calling He has placed on your life. What actions can you take today to step into that identity more fully? Ask God to give you clarity on your purpose and boldness to walk it out.",
+    "Thursday":
+    "Today's focus is on living a life of generosity and service. Who can you bless today with your time, prayers, or resources? Reflect on how your life can serve as a vessel for God's love. Consider how generosity aligns you with God's heart and His purposes for His people.",
+    "Friday":
+    "Today, focus on living in faith and expecting the supernatural. Where do you need God's miraculous intervention? Step out in faith and trust that God's power is at work in your life. What bold steps can you take today that require trust in His provision and promises?",
+    "Saturday":
+    "Today is Shabbat—a time to rest and reflect. Take a step back from action and enter into God's rest. Reflect on the past week's victories and lessons, and thank God for His faithfulness. How can you rest in His presence today, knowing He provides all you need?",
+    "Sunday":
+    "Today's focus is on revival and awakening. Reflect on how God is stirring your heart and where He is calling you to bring revival. What steps can you take to carry His light into your community? Pray for awakening, both in your life and in the lives of those around you, as you walk boldly in your calling."
 }
+
 
 # Consolidated content
 ACTION_STEPS = """
@@ -336,14 +341,3 @@ def generate_devotional_content(reader_name, reader_purpose_statement):
     raw_response = response.content[0].text
     return raw_response
 
-# Example usage
-if __name__ == "__main__":
-    user_info = {
-        "reader_name": "John",
-        "reader_purpose_statement": "To inspire and lead others to faith and purpose."
-    }
-    devotional_content = generate_devotional_content(
-        reader_name=user_info['reader_name'],
-        reader_purpose_statement=user_info['reader_purpose_statement']
-    )
-    print(devotional_content)

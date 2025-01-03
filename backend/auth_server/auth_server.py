@@ -215,6 +215,36 @@ def delete_user():
         # Detailed error logging
         return jsonify({"error": str(e), "detailed_error": repr(e)}), 500
 
+@auth_app.route('/reset-password', methods=['POST'])
+def reset_password():
+    try:
+        # Get the email from the request payload
+        data = request.get_json()
+        email = data.get('email')
+        FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY')
+
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+
+        # Firebase Authentication endpoint for sending reset password emails
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={FIREBASE_API_KEY}"
+        payload = {
+            "requestType": "PASSWORD_RESET",
+            "email": email
+        }
+
+        # Make a POST request to Firebase API
+        response = requests.post(url, json=payload)
+        response_data = response.json()
+
+        if response.status_code == 200:
+            return jsonify({'message': 'Password reset email sent successfully.'}), 200
+        else:
+            error_message = response_data.get('error', {}).get('message', 'Failed to send email')
+            return jsonify({'error': error_message}), response.status_code
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def search_and_create_or_update_contact(email: str, family_name: str, given_name: str, middle_name: str = None):
     """
