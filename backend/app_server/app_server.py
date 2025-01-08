@@ -150,13 +150,10 @@ def generate_devotional_route(decoded_token):
                 print(f"Error parsing JSON: {e}")
                 return jsonify({"error": "Failed to parse devotional content"}), 500
 
-        # Debugging to confirm it's a dictionary
-        print(type(devotional_content))
-        print(devotional_content)
-
         dateTimeCreated = datetime.now().isoformat()
         doc_uid = uuid.uuid4().hex
         devotional_record = {
+            "title": devotional_content["title"],
             "introduction": devotional_content["introduction"],
             "verse": devotional_content["verse"],
             "insight": devotional_content["insight"],
