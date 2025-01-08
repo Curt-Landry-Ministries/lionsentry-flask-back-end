@@ -29,7 +29,6 @@ THEMES =  {
     "Today's focus is on revival and awakening. Reflect on how God is stirring your heart and where He is calling you to bring revival. What steps can you take to carry His light into your community? Pray for awakening, both in your life and in the lives of those around you, as you walk boldly in your calling."
 }
 
-
 # Consolidated content
 ACTION_STEPS = """
 <action_steps>
@@ -254,13 +253,16 @@ VERSES = [
     "Revelation 21:5"
 ]
 
-# Select the theme and verse for the current day
-current_day = datetime.now().strftime("%A")
-theme_content = THEMES.get(current_day)
-selected_verse = secrets.choice(VERSES)
+
 
 # Devotional prompt template
 def generate_prompt_template(reader_name, reader_purpose_statement):
+
+  # Select the theme and verse for the current day
+  current_day = datetime.now().strftime("%A")
+  theme_content = THEMES.get(current_day)
+  selected_verse = secrets.choice(VERSES)
+  
   DEVOTIONAL_PROMPT_TEMPLATE = f"""
   <devotional_prompt>
     <instructions>
@@ -330,7 +332,7 @@ def generate_devotional_content(reader_name, reader_purpose_statement):
     response = client.messages.create(
         model="claude-3-5-sonnet-20241022",
         max_tokens=1000,
-        temperature=0,
+        temperature=0.2,
         system=ANTHROPIC_ROLE,
         messages=[{
             "role": "user",
@@ -340,4 +342,3 @@ def generate_devotional_content(reader_name, reader_purpose_statement):
      # Clean the response content
     raw_response = response.content[0].text
     return raw_response
-
