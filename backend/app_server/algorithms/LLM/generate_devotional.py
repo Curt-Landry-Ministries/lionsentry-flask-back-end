@@ -3,6 +3,7 @@ import secrets
 import anthropic
 from datetime import datetime
 from dotenv import load_dotenv
+from hdate import HDate
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +11,170 @@ client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 # System role definition
 ANTHROPIC_ROLE = "You are a consensual extension of Rabbi Curt Landry, coaching and guiding people into their purpose, calling, and life of impact, using the Bible. Emulate Curt Landry's authoritative yet compassionate tone."
+
+# Hebrew months data
+hebrew_months = {
+    "Tishrei": {
+        "theme": "New Beginnings, Repentance, and Renewal",
+        "focus": [
+            "Position your heart and mind on the Lord",
+            "Repent to the Lord, make amends",
+            "Awaken and remove what has kept you from returning to the Lord",
+            "Cover any iniquities with the blood of Yeshua",
+            "Receive rest, renewal, and regeneration",
+            "Renew your covenant with the Lord",
+            "Rejoice and be filled with the joy of the Lord"
+        ]
+    },
+    "Cheshvan": {
+        "theme": "Reflection, Releasing Past Hurts, and Transformation",
+        "focus": [
+            "Reflect on the places in your soul where you've been hurt",
+            "Release hurts",
+            "Reflect on the goodness and faithfulness of God",
+            "Reflect and process what you heard from the Lord",
+            "Invite the fragrance of the Holy Spirit to infiltrate your soul"
+        ]
+    },
+    "Kislev": {
+        "theme": "Dedicating Your Temple to the Lord",
+        "focus": [
+            "Examine your heart and motives",
+            "Expect many things to come full circle",
+            "Break patterns of mistrust",
+            "Pay attention to your dreams and night visions",
+            "Review your sleep patterns",
+            "Ask the Lord for warfare strategies"
+        ]
+    },
+    "Tevet": {
+        "theme": "Strategy and Vision",
+        "focus": [
+            "Ask for and expect strategic vision and authority",
+            "Focus on the gift of strategy",
+            "Speak with authority to lead and direct",
+            "See the Lord as our Rear Guard",
+            "Train your mind to filter what you see",
+            "Have hope and expectation"
+        ]
+    },
+    "Shevat": {
+        "theme": "Unlocking Redemption and Divine Instruction",
+        "focus": [
+            "Seek God's instruction",
+            "Embrace God's instruction",
+            "Understand the process of learning",
+            "Live a pattern of integrity, truth, and justice",
+            "Prepare to break free from what has enslaved you",
+            "See how God's instruction helps you maintain spiritual maturity"
+        ]
+    },
+    "Adar": {
+        "theme": "Joy, Expectation, Faithfulness, and Unity",
+        "focus": [
+            "Trust the Lord will deliver His gift in His divine time",
+            "Connect speaking and impact on others",
+            "Connect to God's instruction through prayer",
+            "Position your heart to listen and hear",
+            "Watch for how the Lord may separate or immerse you"
+        ]
+    },
+    "Nisan": {
+        "theme": "Miracles and Redemption",
+        "focus": [
+            "Ask the Lord what He wants you to sacrifice",
+            "Exercise faith, trusting God will strengthen you",
+            "Readily accept the yoke of God's sovereignty",
+            "Place your feet beneath the Father's table at Passover",
+            "Bring an offering to the Lord and sow in expectation"
+        ]
+    },
+    "Iyar": {
+        "theme": "Expectation, Preparation, and Connection",
+        "focus": [
+            "Prepare your heart for instruction",
+            "Be aware of physical and spiritual connections",
+            "Be prepared to battle the Amalek Spirit",
+            "Prepare for a month of healing",
+            "Be aware of and discern the timing of events"
+        ]
+    },
+    "Sivan": {
+        "theme": "Understanding Identity to Walk in God's Instruction",
+        "focus": [
+            "Wait on the Lord and receive God's instruction",
+            "Acknowledge God in all your ways",
+            "Embrace the Word of God as your spiritual sword",
+            "Answer God's call to battle, worship, and live generously",
+            "Embrace your spiritual identity"
+        ]
+    },
+    "Tammuz": {
+        "theme": "Faith, Judgment, and Repentance",
+        "focus": [
+            "Ensure actions align with true identity",
+            "Expect physical and spiritual convergence",
+            "Know that sin may come, but quickly repent",
+            "Be wise with choices and think before reacting"
+        ]
+    },
+    "Av": {
+        "theme": "Understanding Opposition and Opportunities",
+        "focus": [
+            "See that there will be many contradictions",
+            "Know contradictions are opportunities to press in",
+            "Cast off what causes you to lose focus",
+            "Repent, asking for merciful strict justice",
+            "Listen and hear deeply to transform your mind"
+        ]
+    },
+    "Elul": {
+        "theme": "Preparation for the Fall Feasts",
+        "focus": [
+            "Prepare for repentance and introspection",
+            "Confess and abandon things separating you from God",
+            "Embrace spiritual transformation",
+            "Take what is dormant and create action",
+            "Make choices to live with a heavenly perspective"
+        ]
+    }
+}
+
+# Create a mapping of numbers to month names (could just use numbers, but the name is easier to understand)
+hebrew_month_names = {
+    1: "Tishrei",
+    2: "Cheshvan", 
+    3: "Kislev",
+    4: "Tevet",
+    5: "Shevat",
+    6: "Adar",
+    7: "Nisan",
+    8: "Iyar",
+    9: "Sivan",
+    10: "Tammuz",
+    11: "Av",
+    12: "Elul"
+}
+
+#Message style variations
+message_style_tone = [
+    "encouraging",
+    "contemplative",
+    "challenging",
+    "prophetic",
+    "pastoral",
+    "teaching",
+    "revelatory"
+]
+message_style_approach = [
+    "narrative-driven",
+    "exposition",
+    "thematic exploration",
+    "prophetic declaration",
+    "practical application",
+    "Hebrew word study",
+    "biblical typology"
+]
 
 # Themes for each day of the week
 THEMES =  {
@@ -253,10 +418,32 @@ VERSES = [
     "Revelation 21:5"
 ]
 
+RULES = """
+      <rules>
+        <rule>Tailor the output to the context and reader's profile and purpose statement</rule>
+        <rule>Don't include word counts in the output</rule>
+        <rule>Provide only the requested information. Your response will be used in an application expecting just the requested content. No filler.</rule>
+        <rule>Speak directly to the reader named in the reader profile</rule>
+        <rule>Primarily source information and commentary from the given context and Curt Landry or Curt Landry Ministries</rule>
+        <rule>Use teachings from similar teachers: John Kilpatrick, Michael Brown, Steve Hill, Paul Wilbur, Robert Henderson</rule>
+        <rule>Also reference the following as context: Strong's concordance, Vine's expository Dictionary, Mounce Reverse Interlinear New Testament, Gems from the Greek Vol. 1 & 2, Baker's Evangelical Dictionary of Biblical Theology, Easton's Bible Dictionary, Hitchcock's Bible Names Dictionary, King James Dictionary, Smith's Bible Dictionary, Matthew Henry's Commentary, The Spirit-filled Life New Testament Commentary Series, The Pentecostal Old Testament and New Testament Commentaries, Baker Exegetical Commentary series, Pentecostal Commentary Series, Applied Commentary, Enduring Word Bible Commentary</rule>
+      </rules>
+    """
 
 
 # Devotional prompt template
 def generate_prompt_template(reader_name, reader_purpose_statement):
+
+  # Generate random message styles
+  tone = secrets.choice(message_style_tone)
+  approach = secrets.choice(message_style_approach)
+
+  # Get current Hebrew date
+  hebrew_date = HDate()
+  # Get month number (1-12)
+  month_number = hebrew_date.hdate.month.value
+  # month number to name
+  month_name = hebrew_month_names[month_number]
 
   # Select the theme and verse for the current day
   current_day = datetime.now().strftime("%A")
@@ -267,7 +454,7 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
   <devotional_prompt>
     <instructions>
       <instruction>Return the response as json</instruction>
-      <instruction>Generate a personalized daily devotional based on <devotional_parameters> and <reader_profile> that encourages the reader to live a life of impact and fulfill their God-given purpose. Create a new devotional each time prompted, following the <format> and <rules>. This devotional should encourage them to take action in alignment with <action_steps>, and be consistent and grounded in <curt_landry_principles> and <ministry_values>. Use the <style_guide> and <book_reference> to inform the tone and approach.</instruction>
+      <instruction>Generate a personalized {approach} daily devotional based strongly on the <devotional_parameters> and also on the <reader_profile> in a {tone} tone, that encourages the reader to live a life of impact and fulfill their God-given purpose. Create a new devotional each time prompted, following the <format> and {RULES}. This devotional should encourage them to take action in alignment with <action_steps>, and be consistent and grounded in <curt_landry_principles> and <ministry_values>. Also, consider the theme and focus of the current <hebrew_month>. Use the <style_guide> and <book_reference> to inform the style and approach.</instruction>
     </instructions>
 
     <format>
@@ -275,7 +462,7 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
         Write an impactful title that grabs the reader's attention and makes them excited about reading the devotional relevant to today's topic and verse. Output in title tag.
       </title>
       <introduction>
-        Write a 2-sentence encouragement to the reader, by name, combining today's topic, context of the verse, their personal purpose statement, and related context into a powerful statement. Speak over them the goodness of God, their purpose, their identity, and that they do and will live a life of purpose. Output in introduction tag.
+        Write a 2-sentence {approach} devotional introduction to the reader, by name, combining today's <theme> topic and context of the verse. Output in introduction tag.
       </introduction>
       <verse>
         Quote the given verse using the NKJV Bible, be sure to reference the book, chapter, and verse (Example: - Hebrews 11:1). Output in verse tag.
@@ -297,18 +484,14 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
       </journal>
     </format>
 
-    <rules>
-      <rule>Tailor the output to the context and reader's profile and purpose statement</rule>
-      <rule>Don't include word counts in the output</rule>
-      <rule>Provide only the requested information. Your response will be used in an application expecting just the requested content. No filler.</rule>
-      <rule>Speak directly to the reader named in the reader profile</rule>
-      <rule>Primarily source information and commentary from the given context and Curt Landry or Curt Landry Ministries</rule>
-      <rule>Use teachings from similar teachers: John Kilpatrick, Michael Brown, Steve Hill, Paul Wilbur, Robert Henderson</rule>
-      <rule>Also reference the following as context: Strong's concordance, Vine's expository Dictionary, Mounce Reverse Interlinear New Testament, Gems from the Greek Vol. 1 & 2, Baker's Evangelical Dictionary of Biblical Theology, Easton's Bible Dictionary, Hitchcock's Bible Names Dictionary, King James Dictionary, Smith's Bible Dictionary, Matthew Henry's Commentary, The Spirit-filled Life New Testament Commentary Series, The Pentecostal Old Testament and New Testament Commentaries, Baker Exegetical Commentary series, Pentecostal Commentary Series, Applied Commentary, Enduring Word Bible Commentary</rule>
-    </rules>
     <devotional_parameters>
-      <theme>{theme_content}</theme>
+      <theme>{{theme_content}}</theme>
       <focus_verse>{selected_verse}</focus_verse>
+        <hebrew_month>
+            <month-name>{month_name}</month-name>
+            <month-theme>{hebrew_months[month_name]["theme"]}</month-theme>
+            <month-focus>{", ".join(hebrew_months[month_name]["focus"])}</month-focus>
+        </hebrew_month>
     </devotional_parameters>
 
     <reader_profile>
