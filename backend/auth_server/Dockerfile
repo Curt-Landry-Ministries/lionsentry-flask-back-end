@@ -10,9 +10,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Set the working directory to /app
 WORKDIR /app
 
-# Install only necessary build dependencies
+# Install necessary build dependencies, including git
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
