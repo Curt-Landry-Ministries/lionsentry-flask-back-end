@@ -213,8 +213,9 @@ def generate_why_statement(questions_answers):
     {user_data}
     </question_answers>
     <process>
-    Return the response as json
-    Analyze the User's Answers Thoroughly
+    Return the response as json.
+    Do not include notes or comments outside of the json.
+    Analyze the User's Answers Thoroughly.
     Read Carefully: Go through each of the user's responses to the provided questions in detail.
     Identify Key Elements: Look for recurring themes, values, passions, strengths, beliefs, and significant experiences.
     Use CoT Reasoning: Think step-by-step to connect the dots between different answers, drawing out deeper insights.
