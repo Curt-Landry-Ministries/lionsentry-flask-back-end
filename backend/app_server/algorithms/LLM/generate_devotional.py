@@ -454,7 +454,7 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
   <devotional_prompt>
     <instructions>
       <instruction>Return the response as json</instruction>
-      <instruction>Generate a personalized {approach} daily devotional based strongly on the <devotional_parameters> and also on the <reader_profile> in a {tone} tone, that encourages the reader to live a life of impact and fulfill their God-given purpose. Create a new devotional each time prompted, following the <format> and {RULES}. This devotional should encourage them to take action in alignment with <action_steps>, and be consistent and grounded in <curt_landry_principles> and <ministry_values>. Also, consider the theme and focus of the current <hebrew_month>. Use the <style_guide> and <book_reference> to inform the style and approach.</instruction>
+      <instruction>Generate a personalized {approach} daily devotional based strongly on the <devotional_parameters> and also on the <reader_profile> in a {tone} tone, that encourages the reader to live a life of impact and fulfill their God-given purpose. Create a new devotional each time prompted, following the <format> and <rules>. This devotional should encourage them to take action in alignment with <action_steps>, and be consistent and grounded in <curt_landry_principles> and <ministry_values>. Also, consider the theme and focus of the current <hebrew_month>. Use the <style_guide> and <book_reference> to inform the style and approach.</instruction>
     </instructions>
 
     <format>
@@ -485,7 +485,7 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
     </format>
 
     <devotional_parameters>
-      <theme>{{theme_content}}</theme>
+      <theme>{theme_content}</theme>
       <focus_verse>{selected_verse}</focus_verse>
         <hebrew_month>
             <month-name>{month_name}</month-name>
