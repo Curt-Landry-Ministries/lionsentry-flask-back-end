@@ -185,36 +185,6 @@ def refresh_id_token():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@auth_app.route('/delete-user', methods=['POST'])
-# Delete a user and all of the other data associated with them
-def delete_user():
-    try:
-        data = request.get_json()
-        user_id = data.get('userID')
-        id_token = data.get('idToken')
-
-        # Verify the ID token first
-        decoded_token = auth.verify_id_token(id_token)
-        if not decoded_token or decoded_token['uid'] != user_id:
-            return jsonify({"error": "Unauthorized request"}), 403
-
-        collections = ['users', 'onboardingAnswers', 'whyStatements', 'dailyDevotionals']
-        
-        # For each collection, if a document exists for the user, delete it
-        for collection in collections:
-            doc_ref = db.collection(collection).document(user_id)
-            doc = doc_ref.get()
-            if doc.exists:
-                doc_ref.delete()
-
-        # Delete Firebase Authentication User
-        auth.delete_user(user_id)
-
-        return jsonify({"message": "User deleted successfully"}), 200
-    except Exception as e:
-        # Detailed error logging
-        return jsonify({"error": str(e), "detailed_error": repr(e)}), 500
-
 @auth_app.route('/reset-password', methods=['POST'])
 def reset_password():
     try:
