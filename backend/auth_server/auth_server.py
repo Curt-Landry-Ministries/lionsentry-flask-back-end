@@ -288,6 +288,7 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         "family_name": family_name,
         "given_name": given_name,
         "middle_name": middle_name,
+        "opt_in_reason": "LionSentry Acknowledgement"
     }
     create_response = requests.post(create_url, headers=HEADERS, json=payload)
 
