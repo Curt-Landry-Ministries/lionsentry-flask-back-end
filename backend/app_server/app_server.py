@@ -575,7 +575,7 @@ def save_user_data_point(decoded_token):
 def get_questions():
     try:
         # Construct the absolute path for the questions.json
-        questions_path = os.path.join(base_dir, "data/questions.json")
+        questions_path = os.path.join(base_dir, "questions.json")
 
         with open(questions_path, 'r') as file:
             questions = json.load(file)
