@@ -54,20 +54,11 @@ def on_create_user(user_id, email):
     
 
 def initialize_onboarding_flow(user_id):
-    # Load onboarding steps from JSON file
-    # TODO implement this in the FE. My thinking here is that we want to save the user's place in the onbaording flow, as it's pretty lengthy and restarting would suck
     with open(os.path.join(base_dir, "auth_server/onboarding_steps.json"), "r") as file:
         steps = json.load(file)
 
     # Initialize steps data
     steps_data = [{"stepName": step, "dateCompleted": None, "dateCreated": datetime.utcnow()} for step in steps]
-
-    # Create onboarding flow document
-    # db.collection('onboardingFlows').document(user_id).set({
-    #     "version": 1,
-    #     "userID": user_id,
-    #     "steps": steps_data
-    # })
 
 
 @auth_app.route('/login-user', methods=['POST'])
