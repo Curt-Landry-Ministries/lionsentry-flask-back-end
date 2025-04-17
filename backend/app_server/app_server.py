@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import datetime
+import requests
 from datetime import datetime, timedelta
 from functools import wraps
 from flask_cors import CORS
@@ -16,7 +17,6 @@ from firebase_admin import storage
 from werkzeug.utils import secure_filename
 import uuid
 
-
 app = Flask(__name__)
 CORS(app)
 
@@ -27,11 +27,21 @@ pst.setup_session(app)
 pst.setup_logging(app)
 pst.setup_cors(app)
 
+# KEAP ENVIRONMENT VARIABLES
+TAG_ID = str(os.environ.get('LS_WHY_TAG_ID'))  # Tag ID as a string
+ACCESS_TOKEN = os.environ.get('KEAP_API_KEY')  # Keap API key
+BASE_URL = "https://api.infusionsoft.com/crm/rest/v1"
+
+# HEADERS for KEAP requests
+HEADERS = {
+    "Authorization": f"Bearer {ACCESS_TOKEN}",
+    "Content-Type": "application/json"
+}
+
 base_dir = pst.get_base_directory()
 user_answers = {}
 
 # Auth Token
-   
 def verify_firebase_token(f):
     # Decoder to verify the Firebase ID token
     @wraps(f)
@@ -53,48 +63,7 @@ def verify_firebase_token(f):
         return f(*args, **kwargs)
     return decorator
 
-
-# generate email route - probably going away
-
-@app.route('/generate-email', methods=['POST'])
-@verify_firebase_token
-def generate_email_route():
-    logging.debug("Accessing /generate-email endpoint")
-    try:
-        data = request.json
-        user_id = data.get('user_id')
-        if not user_id:
-            return jsonify({"error": "User ID is required"}), 400
-
-        # Query Firestore for the user's Why Statement
-        why_statement_docs = db.collection('whyStatements').where('forUser', '==', user_id).get()
-        if len(why_statement_docs) == 0:
-            return jsonify({"error": "Why Statement not found for the user"}), 404
-
-        why_statement = why_statement_docs[0].to_dict().get('whyStatement', '')
-        user_fname = why_statement_docs[0].to_dict().get('firstName', '')
-        # Generate a devotional using the user's Why Statement
-        devotional_content = generate_devotional_content(user_fname, why_statement)
-
-        # Store the devotional in Firestore
-        dateTimeCreated = datetime.now().isoformat()
-        devotional_record = {
-            "title": devotional_content["Title"],
-            "biblePassage": devotional_content["BiblePassage"],
-            "personalization": devotional_content["Personalization"],
-            "journalingPrompt": devotional_content["JournalingPrompt"],
-            "dateTimeCreated": dateTimeCreated,
-            "forUser": user_id
-        }
-        db.collection('devotionals').add(devotional_record)
-
-        return jsonify(devotional_content)
-    except Exception as e:
-        app.logger.error(f'Failed to generate devotional content: {e}', exc_info=True)
-        return jsonify({"error": "Failed to generate devotional content"}), 500
-
-# starrt devotionals routes
-
+# start devotionals routes
 @app.route('/generate-devotional', methods=['POST'])
 @verify_firebase_token
 def generate_devotional_route(decoded_token):
@@ -242,8 +211,8 @@ def update_devotional(decoded_token):
         return jsonify({"error": "Failed to update devotional"}), 500
 
 # end devotionals routes
-# start goals routes
 
+# start goals routes
 @app.route('/save-goals', methods=['POST'])
 @verify_firebase_token
 # goals have a goal, category, string, deadline, created, isComplete, isDeleted=false, forUser
@@ -355,8 +324,8 @@ def update_goal(decoded_token):
         return jsonify({"error": "Failed to update goal."}), 500
 
 # end goals routes
-# start user routes
 
+# start user routes
 @app.route('/upload-profile-photo', methods=['POST'])
 def upload_profile_photo():
     try:
@@ -420,15 +389,14 @@ def get_user_info(decoded_token):
         app.logger.error(f'Failed to get user info: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve user info"}), 500
 
-
 def allowed_file(filename):
     """Check if the uploaded file is a valid image type."""
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 # end user routes
-# start why statement routes
 
+# start why statement routes
 @app.route('/generate-why-statement', methods=['POST'])
 @verify_firebase_token
 def generate_why_statement_route(decoded_token):
@@ -521,10 +489,9 @@ def get_latest_why_statement(decoded_token):
         app.logger.error(f'Failed to retrieve latest why statement: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve latest why statement"}), 500
 
-
 # end why statement routes
-# start user routes
 
+# start user routes
 @app.route('/submit-onboarding-answer', methods=['POST'])
 @verify_firebase_token  
 def submit_answer(decoded_token):
@@ -534,6 +501,10 @@ def submit_answer(decoded_token):
         answer_text = request.json.get("answer")
         question_index = request.json.get("questionIndex")
         dateTimeAnswered = datetime.now().isoformat()  # Current timestamp
+
+        # Get user email from Firebase
+        user_record = auth.get_user(user_id)
+        email = user_record.email
 
         # Construct the answer object
         answer_object = {
@@ -560,6 +531,8 @@ def submit_answer(decoded_token):
                 "questionIndex": question_index
             }
             db.collection('onboardingAnswers').add(new_answer_record)
+            # Add LS_Why Tag to user
+            search_and_update_contact(email)
 
         return jsonify({"status": "success", "message": "Answer submitted successfully"})
     except Exception as e:
@@ -608,13 +581,12 @@ def save_user_data_point(decoded_token):
         app.logger.error(f'Error in save_user_data_point: {str(e)}', exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-
 @app.route('/get-questions', methods=['GET'])
 # Grab the static questions and feed them to the frontend
 def get_questions():
     try:
         # Construct the absolute path for the questions.json
-        questions_path = os.path.join(base_dir, "data/questions.json")
+        questions_path = os.path.join(base_dir, "questions.json")
 
         with open(questions_path, 'r') as file:
             questions = json.load(file)
@@ -664,6 +636,82 @@ def get_all_answers(decoded_token):
         app.logger.error(f'Failed to get all answers: {e}', exc_info=True)
         return jsonify({"error": "Failed to retrieve all answers"}), 500
 
+def search_and_update_contact(email : str):
+    try:
+        """
+        Searches for a contact by email. If found, applies the tag if not already applied.
+        If not found, creates a new contact and applies the tag.
+        """
+
+        # 1. Search for the contact by email
+        search_url = f"{BASE_URL}/contacts?email={email}"
+        search_response = requests.get(search_url, headers=HEADERS)
+
+        if search_response.status_code == 200:
+            contacts = search_response.json().get("contacts", [])
+            if contacts:
+                contact = contacts[0]  # Take the first contact
+                contact_id = contact.get("id")
+
+                print(f"Contact found: ID={contact_id}, Email={email}")
+                # Check for existing tags before applying
+                if tag_already_applied(contact_id, TAG_ID):
+                    print(f"Tag already applied to contact ID={contact_id}.")
+                    return {"message": "Tag already exists for contact", "contact_id": contact_id}
+                else:
+                    add_tag_result = add_tag_to_contact(contact_id, TAG_ID)
+                    if add_tag_result.get("error"):
+                        print(f"Error adding tag: {add_tag_result['error']}")
+                        return {"error": "Failed to apply tag", "contact_id": contact_id}
+                    else:
+                        print(f"Tag successfully applied to existing contact (ID={contact_id}).")
+                        return {"message": "Tag applied to existing contact", "contact_id": contact_id}
+
+        elif search_response.status_code != 404:
+            app.logger.error(f"Error searching for contact: {search_response.text}")
+            return {"error": "Error searching contact", "details": search_response.text}
+    except Exception as e:
+        app.logger.error(f'Failed to get all answers: {e}', exc_info=True)
+        return jsonify({"error": "Failed to retrieve all answers"}), 500
+
+def tag_already_applied(contact_id: int, tag_id: str):
+    """
+    Checks if a specific tag is already applied to a contact.
+    """
+    tags_url = f"{BASE_URL}/contacts/{contact_id}/tags"
+    response = requests.get(tags_url, headers=HEADERS)
+
+    if response.status_code == 200:
+        existing_tags = response.json().get("tags", [])
+        print(f"Raw existing tags response: {existing_tags}")  # Debugging line
+
+        # Extract tag IDs from the nested structure
+        tag_ids = [str(tag.get("tag", {}).get("id")) for tag in existing_tags if "tag" in tag and "id" in tag["tag"]]
+        print(f"Existing tag IDs for contact {contact_id}: {tag_ids}")
+
+        # Check if the tag_id exists
+        return tag_id in tag_ids
+    else:
+        print(f"Error fetching tags for contact {contact_id}: {response.text}")
+    return False
+
+def add_tag_to_contact(contact_id: int, tag_id: str):
+    """
+    Adds a tag to a contact.
+    """
+    tags_url = f"{BASE_URL}/contacts/{contact_id}/tags"
+
+    payload = {"tagIds": [TAG_ID]}
+    print(f"Sending payload to add tag: {payload}")  # Debugging line
+
+    response = requests.post(tags_url, headers=HEADERS, json=payload)
+
+    if response.status_code in [200, 201]:
+        print(f"Tag successfully applied: {response.json()}")
+        return {"success": True, "contact_id": contact_id, "tag_id": TAG_ID}
+    else:
+        print(f"Failed to apply tag: {response.status_code} - {response.text}")
+        return {"error": f"Error adding tag: {response.text}"}
 
 if __name__ == '__main__':
     app.logger.info('Server startup')

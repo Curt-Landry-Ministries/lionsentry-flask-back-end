@@ -17,7 +17,7 @@ base_dir = pst.get_base_directory()
 load_dotenv()
 
 # ENVIRONMENT VARIABLES
-TAG_ID = str(os.environ.get('TAG_ID'))  # Tag ID as a string
+TAG_ID = str(os.environ.get('LS_TAG_ID'))  # Tag ID as a string
 ACCESS_TOKEN = os.environ.get('KEAP_API_KEY')  # Keap API key
 BASE_URL = "https://api.infusionsoft.com/crm/rest/v1"
 
@@ -26,7 +26,6 @@ HEADERS = {
     "Authorization": f"Bearer {ACCESS_TOKEN}",
     "Content-Type": "application/json"
 }
-
 
 def on_create_user(user_id, email):
     """
@@ -52,23 +51,12 @@ def on_create_user(user_id, email):
     # initialize an onboarding flow for this user
     initialize_onboarding_flow(user_id)
     
-
 def initialize_onboarding_flow(user_id):
-    # Load onboarding steps from JSON file
-    # TODO implement this in the FE. My thinking here is that we want to save the user's place in the onbaording flow, as it's pretty lengthy and restarting would suck
     with open(os.path.join(base_dir, "auth_server/onboarding_steps.json"), "r") as file:
         steps = json.load(file)
 
     # Initialize steps data
     steps_data = [{"stepName": step, "dateCompleted": None, "dateCreated": datetime.utcnow()} for step in steps]
-
-    # Create onboarding flow document
-    # db.collection('onboardingFlows').document(user_id).set({
-    #     "version": 1,
-    #     "userID": user_id,
-    #     "steps": steps_data
-    # })
-
 
 @auth_app.route('/login-user', methods=['POST'])
 def login_user():
@@ -309,7 +297,6 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         print(f"Error creating contact: {create_response.text}")
         return {"error": "Error creating contact", "details": create_response.text}
 
-
 def tag_already_applied(contact_id: int, tag_id: str):
     """
     Checks if a specific tag is already applied to a contact.
@@ -331,7 +318,6 @@ def tag_already_applied(contact_id: int, tag_id: str):
         print(f"Error fetching tags for contact {contact_id}: {response.text}")
     return False
 
-
 def add_tag_to_contact(contact_id: int, tag_id: str):
     """
     Adds a tag to a contact.
@@ -349,8 +335,6 @@ def add_tag_to_contact(contact_id: int, tag_id: str):
     else:
         print(f"Failed to apply tag: {response.status_code} - {response.text}")
         return {"error": f"Error adding tag: {response.text}"}
-
-
 
 @auth_app.route('/create-keap-user', methods=['POST'])
 def create_keap_user():
@@ -371,7 +355,6 @@ def create_keap_user():
         return jsonify({"status": "failure", "details": response}), 500
     else:
         return jsonify({"status": "success", "details": response}), 200
-
 
 if __name__ == '__main__':
     auth_app.run(host='0.0.0.0', port=5002, debug=True)
