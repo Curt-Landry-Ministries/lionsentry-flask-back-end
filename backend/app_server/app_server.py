@@ -38,7 +38,6 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-base_dir = pst.get_base_directory()
 user_answers = {}
 
 # Auth Token
@@ -586,8 +585,7 @@ def save_user_data_point(decoded_token):
 def get_questions():
     try:
         # Construct the absolute path for the questions.json
-        questions_path = os.path.join(base_dir, "questions.json")
-
+        questions_path = os.path.join(base_dir, "app_server/questions.json")
         with open(questions_path, 'r') as file:
             questions = json.load(file)
         return jsonify(questions)
