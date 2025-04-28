@@ -18,7 +18,12 @@ from werkzeug.utils import secure_filename
 import uuid
 
 app = Flask(__name__)
-CORS(app)
+# Get origins from env and split into list
+cors_origins = os.getenv('CORS_ORIGINS', '')
+allowed_origins = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+
+# Pass to Flask-CORS
+CORS(app, origins=allowed_origins)
 
 base_dir = pst.get_base_directory()
 app.secret_key = 'your_secret_key_here'

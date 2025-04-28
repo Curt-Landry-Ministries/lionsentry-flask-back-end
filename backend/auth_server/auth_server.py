@@ -11,7 +11,13 @@ from backend import public_server_template as pst
 from backend.firebase.firebase_admin_sdk import db
 
 auth_app = Flask(__name__)
-CORS(auth_app)
+
+# Get origins from env and split into list
+cors_origins = os.getenv('CORS_ORIGINS', '')
+allowed_origins = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+
+# Pass to Flask-CORS
+CORS(auth_app, origins=allowed_origins)
 
 base_dir = pst.get_base_directory()
 load_dotenv()
