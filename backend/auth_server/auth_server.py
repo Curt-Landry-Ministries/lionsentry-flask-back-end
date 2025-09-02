@@ -234,7 +234,7 @@ def reset_password():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def search_and_create_or_update_contact(email: str, family_name: str, given_name: str, middle_name: str = None):
+def search_and_create_or_update_contact(email: str, family_name: str, given_name: str, time_zone: str, middle_name: str = None):
     """
     Searches for a contact by email. If found, applies the tag if not already applied.
     If not found, creates a new contact and applies the tag.
@@ -276,6 +276,7 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         "family_name": family_name,
         "given_name": given_name,
         "middle_name": middle_name,
+        "time_zone": time_zone,
         "opt_in_reason": "LionSentry Acknowledgement"
     }
     create_response = requests.post(create_url, headers=HEADERS, json=payload)
@@ -346,11 +347,12 @@ def create_keap_user():
     email = data.get("email")
     first_name = data.get("firstName")
     last_name = data.get("lastName")
+    time_zone = data.get("timeZone")
 
     if not email or not first_name or not last_name:
         return jsonify({"error": "Missing required fields: email, firstName, or lastName"}), 400
 
-    response = search_and_create_or_update_contact(email, last_name, first_name)
+    response = search_and_create_or_update_contact(email, last_name, first_name, time_zone)
     if "error" in response:
         return jsonify({"status": "failure", "details": response}), 500
     else:
