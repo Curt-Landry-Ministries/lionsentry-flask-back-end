@@ -235,40 +235,35 @@ def reset_password():
         return jsonify({'error': str(e)}), 500
 
 def search_and_create_or_update_contact(email: str, family_name: str, given_name: str, time_zone: str, middle_name: str = None):
-    """
-    Searches for a contact by email. If found, applies the tag if not already applied.
-    If not found, creates a new contact and applies the tag.
-    """
-
-    # 1. Search for the contact by email
+    # 1) search
     search_url = f"{BASE_URL}/contacts?email={email}"
     search_response = requests.get(search_url, headers=HEADERS)
+
+    normalized_tz = normalize_keap_timezone(time_zone)
 
     if search_response.status_code == 200:
         contacts = search_response.json().get("contacts", [])
         if contacts:
-            contact = contacts[0]  # Take the first contact
-            contact_id = contact.get("id")
-
+            contact_id = contacts[0].get("id")
             print(f"Contact found: ID={contact_id}, Email={email}")
-            # Check for existing tags before applying
+
+            # ensure time zone is set for existing contacts
+            ok, err = update_contact_timezone(contact_id, normalized_tz)
+            if not ok:
+                print(f"Failed to update time_zone for contact {contact_id}: {err}")
+
+            # tag logic (unchanged except payload fix below)
             if tag_already_applied(contact_id, TAG_ID):
-                print(f"Tag already applied to contact ID={contact_id}.")
                 return {"message": "Tag already exists for contact", "contact_id": contact_id}
-            else:
-                add_tag_result = add_tag_to_contact(contact_id, TAG_ID)
-                if add_tag_result.get("error"):
-                    print(f"Error adding tag: {add_tag_result['error']}")
-                    return {"error": "Failed to apply tag", "contact_id": contact_id}
-                else:
-                    print(f"Tag successfully applied to existing contact (ID={contact_id}).")
-                    return {"message": "Tag applied to existing contact", "contact_id": contact_id}
+            add_tag_result = add_tag_to_contact(contact_id, TAG_ID)
+            return ({"error": "Failed to apply tag", "contact_id": contact_id}
+                    if add_tag_result.get("error")
+                    else {"message": "Tag applied to existing contact", "contact_id": contact_id})
 
     elif search_response.status_code != 404:
-        print(f"Error searching for contact: {search_response.text}")
         return {"error": "Error searching contact", "details": search_response.text}
 
-    # 2. Create the contact if not found
+    # 2) create
     print("Contact not found. Creating a new contact...")
     create_url = f"{BASE_URL}/contacts"
     payload = {
@@ -276,27 +271,28 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         "family_name": family_name,
         "given_name": given_name,
         "middle_name": middle_name,
-        "time_zone": time_zone,
+        "time_zone": normalized_tz,
         "opt_in_reason": "LionSentry Acknowledgement"
     }
     create_response = requests.post(create_url, headers=HEADERS, json=payload)
 
-    if create_response.status_code in [200, 201]:
-        new_contact = create_response.json()
-        contact_id = new_contact.get("id")
-        print(f"New contact created: ID={contact_id}")
-
-        # Apply the tag to the new contact
+    if create_response.status_code in (200, 201):
+        contact_id = create_response.json().get("id")
         add_tag_result = add_tag_to_contact(contact_id, TAG_ID)
-        if add_tag_result.get("error"):
-            print(f"Error adding tag to new contact: {add_tag_result['error']}")
-            return {"error": "Failed to apply tag to new contact", "contact_id": contact_id}
-        else:
-            print(f"Tag successfully applied to new contact (ID={contact_id}).")
-            return {"message": "New contact created and tagged", "contact_id": contact_id}
-    else:
-        print(f"Error creating contact: {create_response.text}")
-        return {"error": "Error creating contact", "details": create_response.text}
+        return ({"error": "Failed to apply tag to new contact", "contact_id": contact_id}
+                if add_tag_result.get("error")
+                else {"message": "New contact created and tagged", "contact_id": contact_id})
+
+    return {"error": "Error creating contact", "details": create_response.text}
+
+
+def add_tag_to_contact(contact_id: int, tag_id: str):
+    url = f"{BASE_URL}/contacts/{contact_id}/tags"
+    payload = {"tagIds": [tag_id]}  # <-- use the arg
+    resp = requests.post(url, headers=HEADERS, json=payload)
+    if resp.status_code in (200, 201):
+        return {"success": True, "contact_id": contact_id, "tag_id": tag_id}
+    return {"error": f"Error adding tag: {resp.status_code} - {resp.text}"}
 
 def tag_already_applied(contact_id: int, tag_id: str):
     """
