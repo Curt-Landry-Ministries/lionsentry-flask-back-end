@@ -282,10 +282,13 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         "family_name": family_name,
         "given_name": given_name,
         "middle_name": middle_name,
-        "time_zone": time_zone,  # already included in your version
+        "time_zone": time_zone, 
         "opt_in_reason": "LionSentry Acknowledgement"
     }
+    print(payload) # Troubleshooting log, remove later
     create_response = requests.post(create_url, headers=HEADERS, json=payload)
+
+
 
     if create_response.status_code in [200, 201]:
         new_contact = create_response.json()
@@ -333,7 +336,7 @@ def add_tag_to_contact(contact_id: int, tag_id: str):
     """
     tags_url = f"{BASE_URL}/contacts/{contact_id}/tags"
 
-    payload = {"tagIds": [TAG_ID]}  # left as-is per your current code
+    payload = {"tagIds": [TAG_ID]}
     print(f"Sending payload to add tag: {payload}")  # Debugging line
 
     response = requests.post(tags_url, headers=HEADERS, json=payload)
