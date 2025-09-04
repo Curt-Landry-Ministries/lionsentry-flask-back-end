@@ -239,8 +239,6 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
     search_url = f"{BASE_URL}/contacts?email={email}"
     search_response = requests.get(search_url, headers=HEADERS)
 
-    normalized_tz = normalize_keap_timezone(time_zone)
-
     if search_response.status_code == 200:
         contacts = search_response.json().get("contacts", [])
         if contacts:
@@ -248,7 +246,7 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
             print(f"Contact found: ID={contact_id}, Email={email}")
 
             # ensure time zone is set for existing contacts
-            ok, err = update_contact_timezone(contact_id, normalized_tz)
+            ok, err = update_contact_timezone(contact_id, time_zone)
             if not ok:
                 print(f"Failed to update time_zone for contact {contact_id}: {err}")
 
@@ -271,7 +269,7 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         "family_name": family_name,
         "given_name": given_name,
         "middle_name": middle_name,
-        "time_zone": normalized_tz,
+        "time_zone": time_zone,
         "opt_in_reason": "LionSentry Acknowledgement"
     }
     create_response = requests.post(create_url, headers=HEADERS, json=payload)
