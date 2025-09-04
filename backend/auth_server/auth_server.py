@@ -251,6 +251,12 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
             contact_id = contact.get("id")
 
             print(f"Contact found: ID={contact_id}, Email={email}")
+
+            # --- NEW: ensure time_zone is set/updated for existing contacts ---
+            tz_updated_ok, tz_err = update_contact_timezone(contact_id, time_zone)
+            if not tz_updated_ok:
+                print(f"Warning: failed to update time_zone for contact {contact_id}: {tz_err}")
+
             # Check for existing tags before applying
             if tag_already_applied(contact_id, TAG_ID):
                 print(f"Tag already applied to contact ID={contact_id}.")
@@ -276,10 +282,13 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
         "family_name": family_name,
         "given_name": given_name,
         "middle_name": middle_name,
-        "time_zone": time_zone,
+        "time_zone": time_zone, 
         "opt_in_reason": "LionSentry Acknowledgement"
     }
+    print(payload) # Troubleshooting log, remove later
     create_response = requests.post(create_url, headers=HEADERS, json=payload)
+
+
 
     if create_response.status_code in [200, 201]:
         new_contact = create_response.json()
@@ -297,6 +306,7 @@ def search_and_create_or_update_contact(email: str, family_name: str, given_name
     else:
         print(f"Error creating contact: {create_response.text}")
         return {"error": "Error creating contact", "details": create_response.text}
+
 
 def tag_already_applied(contact_id: int, tag_id: str):
     """
@@ -319,6 +329,7 @@ def tag_already_applied(contact_id: int, tag_id: str):
         print(f"Error fetching tags for contact {contact_id}: {response.text}")
     return False
 
+
 def add_tag_to_contact(contact_id: int, tag_id: str):
     """
     Adds a tag to a contact.
@@ -336,6 +347,20 @@ def add_tag_to_contact(contact_id: int, tag_id: str):
     else:
         print(f"Failed to apply tag: {response.status_code} - {response.text}")
         return {"error": f"Error adding tag: {response.text}"}
+
+
+# --- NEW: minimal helper to PATCH time_zone on existing contacts ---
+def update_contact_timezone(contact_id: int, time_zone: str):
+    """
+    Updates the time_zone on an existing Keap contact.
+    """
+    url = f"{BASE_URL}/contacts/{contact_id}"
+    payload = {"time_zone": time_zone}
+    resp = requests.patch(url, headers=HEADERS, json=payload)
+    if resp.status_code in [200, 201]:
+        return True, None
+    return False, f"{resp.status_code}: {resp.text}"
+
 
 @auth_app.route('/create-keap-user', methods=['POST'])
 def create_keap_user():
