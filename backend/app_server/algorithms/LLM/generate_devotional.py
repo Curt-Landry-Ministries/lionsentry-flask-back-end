@@ -308,7 +308,7 @@ def generate_devotional_content(reader_name, reader_purpose_statement):
     raw_response = ""
     
     with client.messages.stream(
-        model="claude-3-5-sonnet-20241022",
+        model="claude-3-7-sonnet-20250219",
         max_tokens=1000,
         temperature=0.3,
         system=[
