@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 import anthropic
 import xml.etree.ElementTree as ET
-
 # Load environment variables
 load_dotenv()
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -268,9 +267,15 @@ def generate_why_statement(questions_answers):
 
     # Step 4: Return the API response in a clean format
     try:
-        return response.content[0].text
+      text_content = response.content[0].text.strip()
+      if text_content.startswith("```json"):
+          raw_response = text_content[7:].strip("` \n")
+      else:
+          raw_response = text_content
+      return raw_response
     except (AttributeError, IndexError):
-        return {"error": "Failed to parse the API response."}
+      return {"error": "Failed to parse the API response."}
+
 
 
 
