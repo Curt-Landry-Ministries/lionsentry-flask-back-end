@@ -1,6 +1,8 @@
 import os
 import secrets
 import anthropic
+import logging
+import json
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -302,27 +304,53 @@ def generate_prompt_template(reader_name, reader_purpose_statement):
   return DEVOTIONAL_PROMPT_TEMPLATE
 
 def generate_devotional_content(reader_name, reader_purpose_statement):
-    """Generate devotional content personalized for the reader using Anthropic streaming."""
     personalized_prompt = generate_prompt_template(reader_name, reader_purpose_statement)
-    
-    raw_response = ""
-    
-    with client.messages.stream(
-        model="claude-3-7-sonnet-20250219",
-        max_tokens=1000,
-        temperature=0.3,
-        system=[
-           { "type": "text", "text": ANTHROPIC_ROLE, "cache_control": {"type": "ephemeral"}},
-           { "type": "text", "text": CURT_LANDRY_PRINCIPLES, "cache_control": {"type": "ephemeral"}},
-           { "type": "text", "text": STYLE_GUIDE, "cache_control": {"type": "ephemeral"}},
-           { "type": "text", "text": DEVOTIONAL_INSTRUCTIONS, "cache_control": { "type": "ephemeral" }}
-        ],  
-        messages=[
-            {"role": "user", "content": personalized_prompt}
-        ]
-    ) as stream:
-        for text in stream.text_stream:
-            raw_response += text
-            
-    return raw_response
 
+    system_prompt = "\n\n".join([
+        ANTHROPIC_ROLE,
+        CURT_LANDRY_PRINCIPLES,
+        STYLE_GUIDE,
+        DEVOTIONAL_INSTRUCTIONS
+    ])
+
+    raw_response = ""
+
+    # Stream response from Claude
+    try:
+        with client.messages.stream(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=1500,  # increased to handle longer devotionals
+            temperature=0.3,
+            system=system_prompt,
+            messages=[{"role": "user", "content": personalized_prompt}],
+        ) as stream:
+            for text in stream.text_stream:
+                raw_response += text
+    except Exception as e:
+        logging.error(f"Error streaming response: {e}")
+        return {"error": "Streaming failed", "details": str(e)}
+
+    # Clean the response in case Claude outputs markdown or extra text
+    raw_response = raw_response.strip()
+    if raw_response.startswith("```json"):
+        raw_response = raw_response[7:].strip("` \n")
+
+    # Attempt JSON parsing
+    try:
+        devotional_data = json.loads(raw_response)
+    except json.JSONDecodeError:
+        logging.error("Error parsing JSON devotional response.")
+        return {"error": "Invalid JSON", "raw": raw_response}
+
+    # Validate keys
+    expected_keys = [
+        "title", "introduction", "verse", "insight",
+        "life_application", "declaration", "prayer", "journal"
+    ]
+    for key in expected_keys:
+        if key not in devotional_data:
+            logging.warning(f"Missing key in devotional response: {key}")
+            devotional_data[key] = f"[Missing {key}]"
+
+    logging.debug(f"FINAL JSON RESPONSE:\n{json.dumps(devotional_data, indent=2)}")
+    return devotional_data
