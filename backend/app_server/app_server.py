@@ -611,8 +611,82 @@ def get_latest_answer(decoded_token):
         return jsonify(latest_answer)
     else:
         # If no answer is found, return an appropriate response
-        return jsonify({"error": "No answer found for the given question"}), 404
-    
+        return jsonify({"error": "No answer found for the given question"}), 404 
+@app.route('/get-user-onboarding-profile', methods=['GET'])
+@verify_firebase_token
+def get_user_onboarding_profile(decoded_token):
+    try:
+        user_id = decoded_token['uid']
+
+        #Fetch user info
+        user_doc = db.collection('users').document(user_id).get()
+        if not user_doc.exists:
+            return jsonify({"error": "User not found"}), 404
+
+        user_data = user_doc.to_dict()
+        user_response = {
+            "firstName": user_data.get("firstName"),
+            "lastName": user_data.get("lastName"),
+            "email": user_data.get("email"),
+            "photoURL": user_data.get("photoURL"),
+            "createdAt": user_data.get("accountCreated"),
+            "birthday": user_data.get("birthday"),
+            "sex": user_data.get("sex")
+        }
+
+        #Fetch onboarding answers (latest answer only)
+        answers_query = (
+            db.collection('onboardingAnswers')
+            .where('userID', '==', user_id)
+        )
+
+        onboarding_docs = answers_query.stream()
+        onboarding_data = []
+
+        for doc in onboarding_docs:
+            data = doc.to_dict()
+            answers = data.get("answers", [])
+
+            onboarding_data.append({
+                "question": data.get("question"),
+                "answer": answers[-1]["answer"] if answers else None
+            })
+
+        #Fetch latest Why Statement
+        why_query = (
+            db.collection('whyStatements')
+            .where('forUser', '==', user_id)
+            .order_by('dateTimeCreated', direction=firestore.Query.DESCENDING)
+            .limit(1)
+        )
+
+        why_docs = list(why_query.stream())
+        why_statement_data = None
+
+        if why_docs:
+            why_data = why_docs[0].to_dict()
+            why_statement_data = {
+                "whyStatement": why_data.get("whyStatement"),
+                "purposeStatement": why_data.get("purposeStatement"),
+                "dateTimeCreated": why_data.get("dateTimeCreated")
+            }
+
+        #Final response
+        return jsonify({
+            "user": user_response,
+            "onboarding": onboarding_data,
+            "whyStatement": why_statement_data
+        }), 200
+
+    except Exception as e:
+        app.logger.error(
+            f"Failed to get user onboarding profile: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            "error": "Failed to retrieve onboarding profile"
+        }), 500
+
 @app.route('/get-all-answers', methods=['GET'])
 @verify_firebase_token
 def get_all_answers(decoded_token):
